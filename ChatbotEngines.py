@@ -15,7 +15,7 @@ class ChatbotEngines:
     complete = False
     answer = ""
     result_entities = []
-    history_intents = []
+
 
     # 安全回答
     global_answer = "不好意思，您的回答不详细！"
@@ -25,6 +25,7 @@ class ChatbotEngines:
         self.agentId = agentId
         self.entities_question={}
         self.intents = []
+        self.history_intents = []
         self.n = ChatbotMySQL('127.0.0.1', 'root', '123456', 3306)
 
         self.n.selectDb('chatbot')
@@ -107,14 +108,16 @@ class ChatbotEngines:
 
             actionJson = {"name": "", "complete": complete, "parameters": parametersJson}
 
-        #如果complete=True，则调用solr查询具体信息，填充answer属性
+        # 如果complete=True，则调用solr查询具体信息，填充answer属性
         if complete == True:
+            question = ''
             # 组装问题
             slots = actionJson['parameters']
+            for slot in slots:
+                question += slot['value']
 
             answer = self.querySolr(query)
-        #检查是否有数据权限
-
+        # 检查是否有数据权限
 
         responseJson = {
             "sessionId": self.sessionId,
@@ -130,7 +133,7 @@ class ChatbotEngines:
 
         #保存历史意图，用于做多意图关联
         if complete == True:
-            history_intents.append(responseJson)
+            self.history_intents.append(responseJson)
 
         print("response is :", responseJson)
         lastResponseJson = responseJson
