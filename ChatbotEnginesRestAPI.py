@@ -1,6 +1,5 @@
 from flask import Flask
 from ChatbotEngines import *
-from ChatbotMySQL import *
 
 app = Flask(__name__)
 

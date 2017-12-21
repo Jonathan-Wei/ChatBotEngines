@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="fb65df4f-3f9e-4fe8-bbca-de0e3b3c1a04" name="Default" comment="">
-      <change type="NEW" beforePath="" afterPath="$PROJECT_DIR$/.idea/vcs.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ChatbotEngines.py" afterPath="$PROJECT_DIR$/ChatbotEngines.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/ChatbotEnginesRestAPI.py" afterPath="$PROJECT_DIR$/ChatbotEnginesRestAPI.py" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
@@ -28,13 +28,13 @@
       <file leaf-file-name="ChatbotEngines.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/ChatbotEngines.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="1365">
-              <caret line="118" column="12" lean-forward="false" selection-start-line="118" selection-start-column="12" selection-end-line="118" selection-end-column="12" />
+            <state relative-caret-position="210">
+              <caret line="36" column="33" lean-forward="true" selection-start-line="36" selection-start-column="33" selection-end-line="36" selection-end-column="33" />
               <folding>
                 <element signature="e#14#29#0" expanded="true" />
-                <marker date="1513823899000" expanded="true" signature="636:665" ph="select inten... tbl_intent" />
-                <marker date="1513823899000" expanded="true" signature="1052:1167" ph="select slot,... tbl_slot" />
-                <marker date="1513823899000" expanded="true" signature="1112:1166" ph="select id fr... tbl_intent" />
+                <marker date="1513838631000" expanded="true" signature="593:622" ph="select inten... tbl_intent" />
+                <marker date="1513838631000" expanded="true" signature="1009:1124" ph="select slot,... tbl_slot" />
+                <marker date="1513838631000" expanded="true" signature="1069:1123" ph="select id fr... tbl_intent" />
               </folding>
             </state>
           </provider>
@@ -53,11 +53,9 @@
       <file leaf-file-name="App.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/App.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="105">
-              <caret line="7" column="23" lean-forward="false" selection-start-line="7" selection-start-column="23" selection-end-line="7" selection-end-column="23" />
-              <folding>
-                <element signature="e#0#38#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="30">
+              <caret line="2" column="12" lean-forward="false" selection-start-line="2" selection-start-column="5" selection-end-line="2" selection-end-column="12" />
+              <folding />
             </state>
           </provider>
         </entry>
@@ -65,8 +63,8 @@
       <file leaf-file-name="ChatbotEnginesRestAPI.py" pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/ChatbotEnginesRestAPI.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="165">
-              <caret line="11" column="0" lean-forward="false" selection-start-line="11" selection-start-column="0" selection-end-line="11" selection-end-column="0" />
+            <state relative-caret-position="240">
+              <caret line="16" column="0" lean-forward="true" selection-start-line="16" selection-start-column="0" selection-end-line="16" selection-end-column="0" />
               <folding>
                 <element signature="e#0#23#0" expanded="true" />
               </folding>
@@ -548,13 +546,6 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/ChatbotEngines.py</url>
-          <line>112</line>
-          <option name="timeStamp" value="9" />
-        </line-breakpoint>
-      </breakpoints>
       <breakpoints-dialog>
         <breakpoints-dialog />
       </breakpoints-dialog>
@@ -569,9 +560,9 @@
           <caret line="0" column="0" lean-forward="false" selection-start-line="0" selection-start-column="0" selection-end-line="0" selection-end-column="0" />
           <folding>
             <element signature="e#14#29#0" expanded="true" />
-            <marker date="1513823899000" expanded="true" signature="636:665" ph="select inten... tbl_intent" />
-            <marker date="1513823899000" expanded="true" signature="1052:1167" ph="select slot,... tbl_slot" />
-            <marker date="1513823899000" expanded="true" signature="1112:1166" ph="select id fr... tbl_intent" />
+            <marker date="1513838631000" expanded="true" signature="593:622" ph="select inten... tbl_intent" />
+            <marker date="1513838631000" expanded="true" signature="1009:1124" ph="select slot,... tbl_slot" />
+            <marker date="1513838631000" expanded="true" signature="1069:1123" ph="select id fr... tbl_intent" />
           </folding>
         </state>
       </provider>
@@ -588,9 +579,7 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="60">
           <caret line="7" column="25" lean-forward="true" selection-start-line="7" selection-start-column="25" selection-end-line="7" selection-end-column="25" />
-          <folding>
-            <element signature="e#0#38#0" expanded="true" />
-          </folding>
+          <folding />
         </state>
       </provider>
     </entry>
@@ -695,6 +684,22 @@
         </state>
       </provider>
     </entry>
+    <entry file="file:///Library/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/flask/app.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="383">
+          <caret line="1611" column="0" lean-forward="false" selection-start-line="1611" selection-start-column="0" selection-end-line="1611" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/App.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="30">
+          <caret line="2" column="12" lean-forward="false" selection-start-line="2" selection-start-column="5" selection-end-line="2" selection-end-column="12" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/ChatbotMySQL.py">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="660">
@@ -706,28 +711,10 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/App.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="7" column="23" lean-forward="false" selection-start-line="7" selection-start-column="23" selection-end-line="7" selection-end-column="23" />
-          <folding>
-            <element signature="e#0#38#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file:///Library/Frameworks/Python.framework/Versions/3.6/lib/python3.6/site-packages/flask/app.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="383">
-          <caret line="1611" column="0" lean-forward="false" selection-start-line="1611" selection-start-column="0" selection-end-line="1611" selection-end-column="0" />
-          <folding />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/ChatbotEnginesRestAPI.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="165">
-          <caret line="11" column="0" lean-forward="false" selection-start-line="11" selection-start-column="0" selection-end-line="11" selection-end-column="0" />
+        <state relative-caret-position="240">
+          <caret line="16" column="0" lean-forward="true" selection-start-line="16" selection-start-column="0" selection-end-line="16" selection-end-column="0" />
           <folding>
             <element signature="e#0#23#0" expanded="true" />
           </folding>
@@ -736,13 +723,13 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/ChatbotEngines.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1365">
-          <caret line="118" column="12" lean-forward="false" selection-start-line="118" selection-start-column="12" selection-end-line="118" selection-end-column="12" />
+        <state relative-caret-position="210">
+          <caret line="36" column="33" lean-forward="true" selection-start-line="36" selection-start-column="33" selection-end-line="36" selection-end-column="33" />
           <folding>
             <element signature="e#14#29#0" expanded="true" />
-            <marker date="1513823899000" expanded="true" signature="636:665" ph="select inten... tbl_intent" />
-            <marker date="1513823899000" expanded="true" signature="1052:1167" ph="select slot,... tbl_slot" />
-            <marker date="1513823899000" expanded="true" signature="1112:1166" ph="select id fr... tbl_intent" />
+            <marker date="1513838631000" expanded="true" signature="593:622" ph="select inten... tbl_intent" />
+            <marker date="1513838631000" expanded="true" signature="1009:1124" ph="select slot,... tbl_slot" />
+            <marker date="1513838631000" expanded="true" signature="1069:1123" ph="select id fr... tbl_intent" />
           </folding>
         </state>
       </provider>

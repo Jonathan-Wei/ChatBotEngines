@@ -3,9 +3,6 @@ import requests
 import json
 from ChatbotMySQL import *
 import pysolr
-import MySQLdb
-import sys
-import importlib
 
 
 # 需要添加slot问题顺序、
@@ -129,7 +126,6 @@ class ChatbotEngines:
             "answer": answer,
             "status": status
         }
-
 
         #保存历史意图，用于做多意图关联
         if complete == True:
