@@ -4,33 +4,31 @@ import json
 from ChatbotMySQL import *
 import pysolr
 
-
-# 需要添加slot问题顺序、
-
 class ChatbotEngines:
     lastResponseJson = {}
     complete = False
     answer = ""
     result_entities = []
 
-
     # 安全回答
     global_answer = "不好意思，您的回答不详细！"
 
-    def __init__(self, sessionId, agentId):
+    def __init__(self,app,sessionId, agentId):
         self.sessionId = sessionId
         self.agentId = agentId
         self.entities_question={}
         self.intents = []
         self.history_intents = []
-        self.n = ChatbotMySQL('127.0.0.1', 'root', '123456', 3306)
 
-        self.n.selectDb('chatbot')
-        self.n.query("""select intent from tbl_intent""")
+        self.n = ChatbotMySQL(app.config['MODEL_DB_HOST'],app.config['MODEL_DB_USERNAME'],app.config['MODEL_DB_PASSWORD'],app.config['MODEL_DB_PORT'])
+        #self.n = ChatbotMySQL('119.23.127.239', 'root', '123456', 3306)
+
+        self.n.selectDb(app.config['MODEL_DB'])
+        self.n.query("""select `name` from robot_scene""")
         r = self.n.fetchAll()
 
         for result in r:
-            self.intents.append(result['intent'])
+            self.intents.append(result['name'])
 
     def request(self, question):
         r = requests.get('http://localhost:5000/parse?q=' + question)  # ,params=payload)
@@ -39,7 +37,7 @@ class ChatbotEngines:
         return json.dumps(self.action(data, question))
 
     def getSlotQuestions(self,intent):
-        self.n.query('select slot,slot_question from tbl_slot where intent_id in (select id from tbl_intent where intent =\''+intent+'\')')
+        self.n.query('SELECT type_name as slot,message as slot_question from robot_scene_slot where int_id in (select id from robot_scene WHERE `name` =\''+intent+'\')')
         r = self.n.fetchAll()
 
         for result in r:
@@ -107,11 +105,14 @@ class ChatbotEngines:
 
         # 如果complete=True，则调用solr查询具体信息，填充answer属性
         if complete == True:
-            question = ''
-            # 组装问题
+            self.n.query(
+                'select answer from robot_scene WHERE `name` =\'' + data['intent']['name'] + '\'')
+            r = self.n.fetchAll()
+            question = r.docs[0]
+            # 通过配置的ai回复进行问题组装
             slots = actionJson['parameters']
             for slot in slots:
-                question += slot['value']
+                question = question.replace('${'+slot['entity']+"}",slot['value'])
 
             answer = self.querySolr(query)
         # 检查是否有数据权限
