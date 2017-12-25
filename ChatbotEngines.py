@@ -106,8 +106,8 @@ class ChatbotEngines:
         if complete == True:
             self.n.query(
                 'select answer from robot_scene WHERE `name` =\'' + data['intent']['name'] + '\'')
-            r = self.n.fetchAll()
-            question = r.docs[0]
+            r = self.n.fetchRow()
+            question = r['answer']
             # 通过配置的ai回复进行问题组装
             slots = actionJson['parameters']
             for slot in slots:
@@ -136,7 +136,6 @@ class ChatbotEngines:
         return responseJson
 
     def querySolr(self,question):
-        question = None
         s = pysolr.Solr('http://ai-test.vigortech.cn:8983/solr/chat_bot')
         response = s.search(question)
 
