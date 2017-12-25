@@ -21,7 +21,6 @@ class ChatbotEngines:
         self.history_intents = []
 
         self.n = ChatbotMySQL(app.config['MODEL_DB_HOST'],app.config['MODEL_DB_USERNAME'],app.config['MODEL_DB_PASSWORD'],app.config['MODEL_DB_PORT'])
-        #self.n = ChatbotMySQL('119.23.127.239', 'root', '123456', 3306)
 
         self.n.selectDb(app.config['MODEL_DB'])
         self.n.query("""select `name` from robot_scene""")
