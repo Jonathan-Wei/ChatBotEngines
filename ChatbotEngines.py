@@ -19,6 +19,8 @@ class ChatbotEngines:
         self.entities_question={}
         self.intents = []
         self.history_intents = []
+        self.solrUrl = app.config['SOLR_SERVER_URL']
+        self.nluServer=app.config['NLU_SERVER']
 
         self.n = ChatbotMySQL(app.config['MODEL_DB_HOST'],app.config['MODEL_DB_USERNAME'],app.config['MODEL_DB_PASSWORD'],app.config['MODEL_DB_PORT'])
 
@@ -30,7 +32,7 @@ class ChatbotEngines:
             self.intents.append(result['name'])
 
     def request(self, question):
-        r = requests.get('http://localhost:5000/parse?q=' + question)  # ,params=payload)
+        r = requests.get(self.nluServer + question)
         data = json.loads(r.text)
 
         return json.dumps(self.action(data, question))
@@ -136,7 +138,7 @@ class ChatbotEngines:
         return responseJson
 
     def querySolr(self,question):
-        s = pysolr.Solr('http://ai-test.vigortech.cn:8983/solr/chat_bot')
+        s = pysolr.Solr(self.solrURL)
         response = s.search(question)
 
         print(len(response))

@@ -18,6 +18,8 @@ class Config:
         pass
 
 class DevelopmentConfig(Config):
+    NLU_SERVER="http://localhost:5000/parse?q="
+    SOLR_SERVER_URL="http://ai-test.vigortech.cn:8983/solr/chat_bot"
     MODEL_DB_HOST = "119.23.127.239"
     PLATFORM_DB_HOST=""
 
