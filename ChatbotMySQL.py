@@ -61,6 +61,9 @@ class ChatbotMySQL:
         _params = [data[key] for key in columns]
         return self.cur.execute(_sql, tuple(_params))
 
+    def insert(self,_sql):
+        return self.cur.execute(_sql)
+
     def update(self, tbname, data, condition):
         _fields = []
         _prefix = "".join(['UPDATE `', tbname, '`', 'SET'])
@@ -68,6 +71,9 @@ class ChatbotMySQL:
             _fields.append("%s = %s" % (key, data[key]))
         _sql = "".join([_prefix, _fields, "WHERE", condition])
 
+        return self.cur.execute(_sql)
+
+    def update(self,_sql):
         return self.cur.execute(_sql)
 
     def delete(self, tbname, condition):
