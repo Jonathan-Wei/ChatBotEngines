@@ -9,7 +9,7 @@ sys.setdefaultencoding('utf-8')
 
 answer = ""
 complete = False
-result_entities = []
+result_entities = {}
 actionJson={}
 lastResponseJson = {}
 entities_question = {}
@@ -122,17 +122,18 @@ class ChatbotEngines:
                             for entity in entities:
                                 if entity['entity'] == k:
                                     isMatch = True
-                                    result_entities.append(entity)
+                                    result_entities[k]=v
                                     break
 
                             if not isMatch:
-                                for r_entities in result_entities:
-                                    if r_entities['entity'] == k:
+                                for (k1,v1) in result_entities.items():
+                                    if k1 == k:
                                         isMatch = True
                                         break
 
                                 if isMatch:
                                     answer = entities_question[k]
+
                                     complete = False
 
                         if len(result_entities) == len(entities_question):
@@ -140,10 +141,17 @@ class ChatbotEngines:
                             answer = "action complete"
 
                 parametersJson = []
-                for r_entity in result_entities:
-                    parametersJson.append({"entity": r_entity['entity'], "value": r_entity['value']})
+                for (k2,v2) in result_entities.items():
+                    parametersJson.append({"entity":k2, "value":v2})
 
                 actionJson = {"name": "", "complete": complete, "parameters": parametersJson}
+
+        #如果响应问题中包含参数，则替换;
+        #例如确认问题：您申请了${date}去${address}的出差申请，是否确认提交？
+        slots = actionJson['parameters']
+        if "${" in answer:
+            for slot in slots:
+                answer = answer.replace('${' + slot['entity'] + "}", slot['value'])
 
         # 如果complete=True，则调用solr查询具体信息，填充answer属性
         if complete:
@@ -153,7 +161,7 @@ class ChatbotEngines:
                 r = self.n.fetchRow()
                 question = r['answer']
                 # 通过配置的ai回复进行问题组装
-                slots = actionJson['parameters']
+
                 for slot in slots:
                     question = question.replace('${' + slot['entity'] + "}", slot['value'])
 
@@ -176,6 +184,7 @@ class ChatbotEngines:
 
         # 保存历史意图，用于做多意图关联
         if complete:
+            result_entities = {}
             self.history_intents.append(responseJson)
 
         print("response is :", responseJson)
@@ -195,7 +204,7 @@ class ChatbotEngines:
         return responseJson
 
     def querySolr(self, question):
-        s = pysolr.Solr(self.solrUrl)
+        s = pysolr.Solr(self.solrUrl,timeout=10)
         response = s.search(question)
 
         print(len(response))
