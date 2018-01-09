@@ -86,11 +86,11 @@ class ChatbotEngines:
 
         if data['intent']['confidence'] > 0.4 and unicode(data['intent']['name']) in self.intents:
             print('意图识别成功！')
-            status = {"code": 200, "error_type": "意图识别成功"}
+            status = {"code": 200, "msg": "意图识别成功"}
         else:
             print('意图识别失败')
             print(data)
-            status = {"code": 500, "error_type": "意图识别失败"}
+            status = {"code": 500, "msg": "意图识别失败"}
             answer = ChatbotEngines.global_answer
             if len(lastResponseJson) > 0:
                 if lastResponseJson['status']['code'] == 200:
@@ -111,7 +111,7 @@ class ChatbotEngines:
                 complete = True
             else:
                 if len(entities) == 0:
-                    answer = entities_question.items[-1]
+                    answer = entities_question.items()[0]
                 else:
                     if len(entities_question) == len(entities):
                         complete = True
@@ -122,7 +122,7 @@ class ChatbotEngines:
                             for entity in entities:
                                 if entity['entity'] == k:
                                     isMatch = True
-                                    result_entities[k]=v
+                                    result_entities[k]=entity['value']
                                     break
 
                             if not isMatch:
@@ -131,10 +131,9 @@ class ChatbotEngines:
                                         isMatch = True
                                         break
 
-                                if isMatch:
-                                    answer = entities_question[k]
-
-                                    complete = False
+                            if not isMatch:
+                                answer = entities_question[k]
+                                complete = False
 
                         if len(result_entities) == len(entities_question):
                             complete = True
@@ -154,6 +153,7 @@ class ChatbotEngines:
                 answer = answer.replace('${' + slot['entity'] + "}", slot['value'])
 
         # 如果complete=True，则调用solr查询具体信息，填充answer属性
+        content = {}
         if complete:
             if len(entities_question) != 0:
                 self.n.query(
@@ -163,11 +163,22 @@ class ChatbotEngines:
                 # 通过配置的ai回复进行问题组装
 
                 for slot in slots:
-                    question = question.replace('${' + slot['entity'] + "}", slot['value'])
+                    if slot['entity'] != 'comfirm':
+                        question = question.replace('${' + slot['entity'] + "}", slot['value'])
 
-                answer = self.querySolr(question)
+                self.n.query(
+                    'select `storage` from robot_app WHERE `name` =\'' + data['intent']['name'] + '\'')
+
+                r = self.n.fetchRow()
+                if r is not None:
+                    #这里需要做微服务适配
+                    content = self.querySolr(question)
+                else:
+                    content = {"message": question}
             else:
-                answer = self.querySolr(query)
+                content = self.querySolr(query)
+        else:
+            content = {"message":answer}
 
         # 检查是否有数据权限
 
@@ -181,6 +192,8 @@ class ChatbotEngines:
             "answer": answer,
             "status": status
         }
+
+        print(json.dumps(actionJson))
 
         # 保存历史意图，用于做多意图关联
         if complete:
@@ -201,11 +214,17 @@ class ChatbotEngines:
             print(sql)
             self.n.insert(sql)
 
-        return responseJson
+        #构建接口服务与app端对接
+        returnJson = {'status':status,'data':content}
+        #return response
+        return returnJson
 
     def querySolr(self, question):
+
         s = pysolr.Solr(self.solrUrl,timeout=10)
-        response = s.search(question)
+        response = s.search(question)#,**{
+            #'df':'txt_content_cn'
+        #}
 
         print(len(response))
         if len(response) == 0:
@@ -213,4 +232,42 @@ class ChatbotEngines:
 
         # Print the name of each document.
         answer = response.docs[0]
-        return answer
+        type = answer['info_type_s']
+
+        if type == 'img':
+            data = {
+                "fileName":answer['img_name_s'],
+                "type":1,
+                "thumbnailUrl":answer['file_path_s'],
+                "url":"",
+                "message":answer['answer']}
+        elif type == 'file' :
+            fileName = answer['file_name_s'] 
+            fileType = 0
+            if answer['file_type_s'] == 'pdf':
+               fileType = 2
+            elif answer['file_type_s'] == 'doc':
+                fileType = 3
+            elif answer['file_type_s'] == 'ppt':
+                fileType = 4
+            elif answer['file_type_s'] == 'excel':
+                fileType = 5
+
+            data = {
+                "fileName":fileName,
+                "type":fileType,
+                "thumbnailUrl":answer['file_path_s'],
+                "url":answer['answer'],
+                "message":""}
+        elif type == 'txt':
+            data = {
+                "fileName":"",
+                "type":0,
+                "thumbnailUrl":"",
+                "url":'',
+                "message":answer['txt_content_cn']
+            }
+
+        print(data)
+        return data
+        #return answer
