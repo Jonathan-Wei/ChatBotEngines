@@ -1,4 +1,4 @@
-#coding=utf-8
+#-*- coding=utf-8 -*-
 #config.py：程序的配置
 import os
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -27,6 +27,9 @@ class DevelopmentConfig(Config):
     NLU_SERVER="http://localhost:5000/parse?q="
     SOLR_SERVER_URL="http://ai-test.vigortech.cn:8983/solr/chat_bot"
     MODEL_DB_HOST = "119.23.127.239"
+
+    MICROSERVICE_HOST="172.18.84.72"
+    MICROSERVICE_PORT="8008"
     PLATFORM_DB_HOST=""
 
 

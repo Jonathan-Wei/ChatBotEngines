@@ -1,7 +1,7 @@
-# coding=utf-8
-import requests
-import json
+#-*- coding=utf-8 -*-
 from ChatbotMySQL import *
+from ChatbotMicroservices import *
+from ChatbotUtils import *
 import pysolr
 import sys
 reload(sys)
@@ -30,6 +30,10 @@ class ChatbotEngines:
 
         self.n = ChatbotMySQL(app.config['MODEL_DB_HOST'], app.config['MODEL_DB_USERNAME'],
                               app.config['MODEL_DB_PASSWORD'], app.config['MODEL_DB_PORT'])
+
+        self.microservice = ChatbotMicroservices()
+        self.utils=ChatbotUtils()
+
 
         self.n.selectDb(app.config['MODEL_DB'])
         self.n.query("""select `name` from robot_scene""")
@@ -68,7 +72,7 @@ class ChatbotEngines:
 
 
     def action(self, data, query):
-        global history_intents,answer,actionJson,lastResponseJson,existHistory,result_entities
+        global history_intents,answer,actionJson,lastResponseJson,existHistory,result_entities,entities_question
 
         #查询用户匹配的意图信息
         self.n.query("select * from user_scene_info where user_token = \'"+self.token+"\' and complete = False")
@@ -84,7 +88,7 @@ class ChatbotEngines:
         # 获取实体列表
         entities = data['entities']
 
-        if data['intent']['confidence'] > 0.4 and unicode(data['intent']['name']) in self.intents:
+        if unicode(data['intent']['name']) in self.intents:#data['intent']['confidence'] > 0.4 and
             print('意图识别成功！')
             status = {"code": 200, "msg": "意图识别成功"}
         else:
@@ -111,44 +115,44 @@ class ChatbotEngines:
                 complete = True
             else:
                 if len(entities) == 0:
-                    answer = entities_question.items()[0]
+                    answer = entities_question.items()[0][1]
                 else:
-                    if len(entities_question) == len(entities):
-                        complete = True
-                        answer = "action complete"
-                    else:
-                        for (k, v) in entities_question.items():
-                            isMatch = False
-                            for entity in entities:
-                                if entity['entity'] == k:
+                    #if len(entities_question) == len(entities):
+                    #    complete = True
+                    #    answer = "action complete"
+                    #else:
+                    for (k, v) in entities_question.items():
+                        isMatch = False
+                        for entity in entities:
+                            print(type(k))
+                            if entity['entity'] == k:
+                                isMatch = True
+                                result_entities[k]=entity['value']
+                                break
+
+                        if not isMatch:
+                            for (k1,v1) in result_entities.items():
+                                if k1 == k:
                                     isMatch = True
-                                    result_entities[k]=entity['value']
                                     break
 
-                            if not isMatch:
-                                for (k1,v1) in result_entities.items():
-                                    if k1 == k:
-                                        isMatch = True
-                                        break
+                        if not isMatch:
+                            answer = entities_question[k]
+                            complete = False
 
-                            if not isMatch:
-                                answer = entities_question[k]
-                                complete = False
-
-                        if len(result_entities) == len(entities_question):
-                            complete = True
-                            answer = "action complete"
+                    if len(result_entities) == len(entities_question):
+                        complete = True
 
                 parametersJson = []
                 for (k2,v2) in result_entities.items():
-                    parametersJson.append({"entity":k2, "value":v2})
+                    parametersJson.append({"entity":k2, "value":v2.decode(sys.getdefaultencoding())})
 
                 actionJson = {"name": "", "complete": complete, "parameters": parametersJson}
 
         #如果响应问题中包含参数，则替换;
         #例如确认问题：您申请了${date}去${address}的出差申请，是否确认提交？
         slots = actionJson['parameters']
-        if "${" in answer:
+        if answer is not None and "${" in answer:
             for slot in slots:
                 answer = answer.replace('${' + slot['entity'] + "}", slot['value'])
 
@@ -167,18 +171,18 @@ class ChatbotEngines:
                         question = question.replace('${' + slot['entity'] + "}", slot['value'])
 
                 self.n.query(
-                    'select `storage` from robot_app WHERE `name` =\'' + data['intent']['name'] + '\'')
+                    'select `storage` from robot_app WHERE id = (select app_id from robot_scene where `name` =\'' + data['intent']['name'] + '\')')
 
                 r = self.n.fetchRow()
                 if r is not None:
                     #这里需要做微服务适配
-                    content = self.querySolr(question)
+                    content = self.microservice.route(data['intent']['name'],self.utils.listToMap(slots))
                 else:
-                    content = {"message": question}
+                    content = {"type":0,"message": question}
             else:
-                content = self.querySolr(query)
+                content = self.microservice.route(data['intent']['name'],{"question":query})
         else:
-            content = {"message":answer}
+            content = {"type":0,"message":answer}
 
         # 检查是否有数据权限
 
@@ -197,7 +201,60 @@ class ChatbotEngines:
 
         # 保存历史意图，用于做多意图关联
         if complete:
+
+            # #查询是否存在流程规则，
+            # sql = "select * from robot_process where content like '%\"itName\":\""+data['intent']['name']+"\"%'"
+            # self.n.query(sql)
+            # r = self.n.fetchRow()
+            #
+            # n_intent = {}
+            # if r is not None:
+            #     # 存在则保存历史意图，且利用关联的solt去触发下一个意图
+            #     process = json.dumps(r['content'])
+            #     index = 0
+            #     for item in process:
+            #         if item['itName'] == data['intent']['name']:
+            #             index = process['sort']
+            #             break
+            #
+            #     for item in process:
+            #         if process['sort'] > index:
+            #             n_intent = item
+            #             break
+            #
+            #     #查询意图的slot进行意图匹配
+            #     self.getSlotQuestions(n_intent)
+            #
+            #     #获取历史的slot
+            #     slots = actionJson['parameters']
+            #     isComplete = False
+            #     for (k, v) in entities_question.items():
+            #         isMatch = False
+            #         for slot in slots:
+            #             if slot['entity'] == k:
+            #                 #填充slot
+            #                 result_entities[k] = slot['value']
+            #                 isMatch = True
+            #                 break
+            #
+            #         if not isMatch:
+            #             # 不匹配，获取信息回问用户。
+            #             entities_question[k] == v
+            #             isComplete = False
+            #             break
+            #
+            #         isComplete = True
+            #
+            #     # 如果slot数量以及key相同，则进行微服务调用，返回结果
+            #     if len(entities_question) == len(result_entities) and isComplete:
+            #
+            #         # 调用微服务
+            #         return None
+            # else:
+                # 不存在则不保存历史意图
+            entities_question = {}
             result_entities = {}
+
             self.history_intents.append(responseJson)
 
         print("response is :", responseJson)
@@ -215,59 +272,6 @@ class ChatbotEngines:
             self.n.insert(sql)
 
         #构建接口服务与app端对接
-        returnJson = {'status':status,'data':content}
+        returnJson = {'status':status,'data':[content]}
         #return response
         return returnJson
-
-    def querySolr(self, question):
-
-        s = pysolr.Solr(self.solrUrl,timeout=10)
-        response = s.search(question)#,**{
-            #'df':'txt_content_cn'
-        #}
-
-        print(len(response))
-        if len(response) == 0:
-            return None
-
-        # Print the name of each document.
-        answer = response.docs[0]
-        type = answer['info_type_s']
-
-        if type == 'img':
-            data = {
-                "fileName":answer['img_name_s'],
-                "type":1,
-                "thumbnailUrl":answer['file_path_s'],
-                "url":"",
-                "message":answer['answer']}
-        elif type == 'file' :
-            fileName = answer['file_name_s'] 
-            fileType = 0
-            if answer['file_type_s'] == 'pdf':
-               fileType = 2
-            elif answer['file_type_s'] == 'doc':
-                fileType = 3
-            elif answer['file_type_s'] == 'ppt':
-                fileType = 4
-            elif answer['file_type_s'] == 'excel':
-                fileType = 5
-
-            data = {
-                "fileName":fileName,
-                "type":fileType,
-                "thumbnailUrl":answer['file_path_s'],
-                "url":answer['answer'],
-                "message":""}
-        elif type == 'txt':
-            data = {
-                "fileName":"",
-                "type":0,
-                "thumbnailUrl":"",
-                "url":'',
-                "message":answer['txt_content_cn']
-            }
-
-        print(data)
-        return data
-        #return answer
