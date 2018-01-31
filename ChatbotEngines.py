@@ -84,13 +84,11 @@ class ChatbotEngines:
             return True
 
     def preAction(self,data,query):
-        global ruleComplete,ruleContent,lastEntities,entities,currentQuestionType,returnJson,pre_question,lastIntent,status,lastResponseJson
+        global ruleComplete,ruleContent,lastEntities,entities,currentQuestionType,returnJson,pre_question,lastIntent,status,lastResponseJson,responseJson
         contentData = []
 
         # 判断是否ruleContent 是否空
             #不为空  判断是否已经匹配参数及调用历史意图信息，进行询问
-
-
         if len(ruleContent)>0 or not ruleComplete:
             if lastResponseJson['action']['complete']:
                 for (k,v) in ruleContent.items():
@@ -110,7 +108,19 @@ class ChatbotEngines:
                         if entities is not None:
                             entities.append({'entity':lastResponseJson['slot'],'value':query})
                     responseJson = self.intentAction(contentData, current_intent, entities, None, query,currentQuestionType)
+                    if responseJson['action']['complete'] and ruleContent.has_key(responseJson['intentName']):
+                        ruleContent[responseJson['intentName']] = True
 
+                    isAllTrue = True
+                    for (k, v) in ruleContent.items():
+                        if v is False:
+                            isAllTrue = False
+                            break
+
+                    if isAllTrue:
+                        ruleContent = {}
+                        ruleComplete = True
+                        currentQuestionType = 0
                     returnJson = {'status': responseJson['status'], 'data': contentData}
         else:
             if len(lastResponseJson)>0 and lastResponseJson['currentQuestionType'] == 3:
@@ -197,8 +207,6 @@ class ChatbotEngines:
                     else:
                         currentQuestionType = 2
 
-
-
                 # 构建接口服务与app端对接
                 returnJson = {'status': responseJson['status'], 'data': contentData}
         lastResponseJson = responseJson
@@ -239,6 +247,8 @@ class ChatbotEngines:
                 result_entities = json.loads(r['entities'])
             else:
                 existHistory = False
+        else:
+            existHistory = True
 
         #历史意图是否一致
         if unicode(intent) in self.intents:
@@ -371,8 +381,9 @@ class ChatbotEngines:
             #后置检查
             if not self.afterCheck(data,intent,currentQuestionType,responseJson):
                 # 查询关联规则
-                if self.ruleAction(data, ruleContent, intent, result_entities, currentQuestionType) is not None:
-                    responseJson = self.ruleAction(data, ruleContent, intent, result_entities, currentQuestionType)
+                result = self.ruleAction(data, intent, result_entities, currentQuestionType)
+                if result is not None:
+                    responseJson = result
             else:
                 responseJson['currentQuestionType'] = 3
 
@@ -382,7 +393,8 @@ class ChatbotEngines:
         return responseJson
 
     #流程信息
-    def ruleAction(self,data,ruleContent,intent,result_entities,currentQuestionType):
+    def ruleAction(self,data,intent,result_entities,currentQuestionType):
+        global ruleComplete,ruleContent
 
         current_intent = ''
 
@@ -392,7 +404,7 @@ class ChatbotEngines:
             for result in r:
                 clildIntent = result['name']
                 #调用intentAction
-                ruleContent[clildIntent] = False
+                ruleContent[unicode(clildIntent)] = False
 
             ruleComplete = True
             for (k,v) in ruleContent.items():
@@ -403,7 +415,24 @@ class ChatbotEngines:
 
             if not ruleComplete:
                 currentQuestionType = 0
-                return self.intentAction(data,current_intent, result_entities,None, None,currentQuestionType)
+                result =  self.intentAction(data,current_intent, result_entities,None, None,currentQuestionType)
+                if result['action']['complete'] and ruleContent.has_key(result['intentName']):
+                    ruleContent[result['intentName']]=True
+            else:
+                ruleContent = {}
+
+            isAllTrue = True
+            for (k, v) in ruleContent.items():
+                if v is False:
+                    isAllTrue = False
+                    break
+
+            if isAllTrue:
+                ruleContent = {}
+                ruleComplete = True
+                currentQuestionType = 0
+
+            return result
 
         return None
 

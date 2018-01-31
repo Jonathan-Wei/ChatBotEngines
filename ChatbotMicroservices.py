@@ -41,7 +41,7 @@ class ChatbotMicroservices:
             requestParams = {
                 'businessTrip':'项目交流',
                 'employeeName':'mao',
-                'travelPlace':'北京',
+                'travelPlace':params['address'],
                 'travelDate':'2018-01-20'
             }
             details = self.requst(url, requestParams).json()
