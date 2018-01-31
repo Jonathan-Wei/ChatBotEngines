@@ -1,10 +1,30 @@
 #-*- coding=utf-8 -*-
 import sys
 import datetime
+#from datetime import datetime
+import json
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+cityJson = None
+citys = []
+areas = {}
+
 class ChatbotUtils:
+
+    def __init__(self):
+        global cityJson
+
+        if cityJson is None:
+            with open("./city.json", 'r') as load_f:
+                cityJson = json.load(load_f)
+
+            if cityJson is not None:
+                for item in cityJson:
+                    for city in item['city']:
+                        citys.append(city['name'])
+                        areas[city['name']] = city['area']
+
 
     def listToMap(self,params):
         result = {}
@@ -68,7 +88,46 @@ class ChatbotUtils:
             resultDate = dateStr
         return resultDate
 
+    def matchCity(self,city):
+        if city in citys:
+            return True
+        else:
+            for item in citys:
+                if city in item:
+                    return True
+
+            return False
+
+    def matchAreaByCity(self,city,area):
+        if city is None:
+            for (k,v) in areas.items():
+                for item in v:
+                    if area == item :
+                        return True
+        else:
+            if city in citys:
+                areaArray = areas[city]
+                if area in areaArray:
+                    return True
+                else:
+                    return False
+            else:
+                for (k,v) in areas[city]:
+                    if city in k:
+                        if area in v:
+                            return True
+                return False
+
+    def matchComfirm(self,comfirm):
+        if comfirm == '是的' or comfirm == '对的' or comfirm =='对' or comfirm == '是' or comfirm == '好' or comfirm =='好的' or comfirm == '嗯' or comfirm == 'ok':
+            return True
+
+    def matchSlot(self):
+        None
+
+
 if __name__ == '__main__':
     utils = ChatbotUtils()
-    print(utils.toGetDate('下周日'))
+    #print(datetime.strptime("1月10号", "%m月%d号"))
+    #print(utils.toGetDate('下周日'))
 

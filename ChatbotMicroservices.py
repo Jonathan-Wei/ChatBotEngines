@@ -23,7 +23,11 @@ class ChatbotMicroservices:
             type = 6
             message = "天气信息"
             title = params['city']
-            details = self.requst(url,params).json()['data'][0:7]
+            requestParams = {
+                "city":params['city']
+            }
+            details = self.requst(url,requestParams).json()['data'][0:7]
+
             responseJson['type'] = type
             responseJson['message'] = message
             responseJson['content'] = {
@@ -53,6 +57,17 @@ class ChatbotMicroservices:
             title = params['hotelCity'] +" "+params['hotelArea']
             details = self.requst(url, params).json()['data'][0:5]
 
+            resultDetails = []
+            i = 0
+            for detail in details:
+                detail['date'] = '2018-01-19'
+                if i ==0 :
+                    detail['haveStayed'] = 1
+                else:
+                    detail['haveStayed'] = 0
+                resultDetails.append(detail)
+                i=i+1
+
             responseJson['type'] = type
             responseJson['message'] = message
             responseJson['content'] = {
@@ -64,8 +79,9 @@ class ChatbotMicroservices:
             url = url+"/travel/queryFlightInfo"
             type = 8
             message = "航班信息"
+            params['departureDate'] = '2018-01-16'
             details = self.requst(url, params).json()['data'][0:5]
-            title = params['departure_city']+"-"+params['terminus_city']
+            title = params['departureCity']+"-"+params['terminusCity']
             responseJson['type'] = type
             responseJson['message'] = message
             responseJson['content'] = {
