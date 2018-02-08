@@ -2,7 +2,7 @@
 from ChatbotMySQL import *
 from ChatbotMicroservices import *
 from ChatbotUtils import *
-import pysolr
+from ChatbotHistoryInfo import *
 from collections import OrderedDict
 import sys
 reload(sys)
@@ -15,14 +15,21 @@ actionJson={}
 lastResponseJson = {}
 entities_question = OrderedDict()
 entities_types = {}
-ruleContent = {}
+ruleContent = OrderedDict()
 ruleComplete = True
 lastEntities = {}
 entities = []
 status = {}
+responseJson ={}
 currentQuestionType = 0
+
 pre_question=None
 curslot=None
+history_details = []
+combinationIntents = []
+# 历史意图
+historyIntentsInfo = []
+historyIntentsTag = []
 
 # noinspection PyGlobalUndefined
 class ChatbotEngines:
@@ -36,6 +43,8 @@ class ChatbotEngines:
         self.history_intents = []
         self.solrUrl = app.config['SOLR_SERVER_URL']
         self.nluServer = app.config['NLU_SERVER']
+
+        self.username = ''
 
         self.n = ChatbotMySQL(app.config['MODEL_DB_HOST'], app.config['MODEL_DB_USERNAME'],
                               app.config['MODEL_DB_PASSWORD'], app.config['MODEL_DB_PORT'])
@@ -56,7 +65,6 @@ class ChatbotEngines:
             r = requests.get(self.nluServer + question)
             data = json.loads(r.text)
 
-            #return json.dumps(self.action(data, question))
             return json.dumps(self.preAction(data, question))
         else:
             print("用户未登陆，请登陆之后再做请求")
@@ -65,7 +73,6 @@ class ChatbotEngines:
         global entities_question,entities_types
         entities_question = OrderedDict()
         sql = 'SELECT type_name as slot,dict_name as slot_type,message as slot_question from robot_scene_slot where int_id in (select id from robot_scene WHERE `name` =\'' + intent + '\') order by id'
-        print(sql)
         self.n.query(sql)
         r = self.n.fetchAll()
 
@@ -73,18 +80,21 @@ class ChatbotEngines:
             entities_question[result['slot']] = result['slot_question']
             entities_types[result['slot']] = result['slot_type']
 
+        # 字段匹配
+
     #验证用户token
     def validate(self):
         self.n.query("select * from `sys_user_config` where `token`=\'"+self.token+"\'")
-        r = self.n.fetchAll()
+        r = self.n.fetchRow()
 
         if r is None:
             return False
         else:
+            self.username = r['name']
             return True
 
     def preAction(self,data,query):
-        global ruleComplete,ruleContent,lastEntities,entities,currentQuestionType,returnJson,pre_question,lastIntent,status,lastResponseJson,responseJson
+        global ruleComplete,ruleContent,lastEntities,entities,currentQuestionType,returnJson,pre_question,lastIntent,status,lastResponseJson,responseJson,history_details
         contentData = []
 
         # 判断是否ruleContent 是否空
@@ -104,12 +114,27 @@ class ChatbotEngines:
                 if not lastResponseJson['action']['complete']:
                     #intentAction(self,data,intent,entities,confidence,query,currentQuestionType):
                     ruleMatch = self.ruleMatch(lastResponseJson['slotType'],query)
-                    if ruleMatch in lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
-                        if entities is not None:
-                            entities.append({'entity':lastResponseJson['slot'],'value':query})
+                    if ruleMatch is None:
+                        #意图判断为空，则重新匹配切换意图
+                        if self.matchHistoryDetails(query,lastResponseJson['slot']):
+                            if entities is not None:
+                                entities.append({'entity': lastResponseJson['slot'], 'value': query})
+                        else:
+                            r = requests.get(self.nluServer + query)
+                            data = json.loads(r.text)
+                            entities = data['entities']
+                            confidence = data['intent']['confidence']
+                            currentQuestionType = 0
+                    else:
+                        if ruleMatch in lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
+                            if entities is not None:
+                                entities.append({'entity':lastResponseJson['slot'],'value':query})
+
                     responseJson = self.intentAction(contentData, current_intent, entities, None, query,currentQuestionType)
                     if responseJson['action']['complete'] and ruleContent.has_key(responseJson['intentName']):
                         ruleContent[responseJson['intentName']] = True
+
+                    returnJson = {'status': responseJson['status'], 'data': contentData}
 
                     isAllTrue = True
                     for (k, v) in ruleContent.items():
@@ -118,10 +143,8 @@ class ChatbotEngines:
                             break
 
                     if isAllTrue:
-                        ruleContent = {}
-                        ruleComplete = True
-                        currentQuestionType = 0
-                    returnJson = {'status': responseJson['status'], 'data': contentData}
+                        #参数重置
+                        self.resetHistoryIntent()
         else:
             if len(lastResponseJson)>0 and lastResponseJson['currentQuestionType'] == 3:
                 currentQuestionType =3
@@ -129,22 +152,40 @@ class ChatbotEngines:
             if currentQuestionType == 1:
                 # 获取历史input
                 ruleMatch = self.ruleMatch(pre_question, query)
-                if ruleMatch == '是否':
-                    currentQuestionType = 0
-                    responseJson = self.intentAction(contentData, lastIntent,lastEntities,None,query,currentQuestionType)
+                # 获取否定触发的动作，触发酒店/机票查询
+                self.n.query(
+                    "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + lastIntent + "\' and mark.id = scene.input")
+                r = self.n.fetchRow()
+                if ruleMatch == '确定':
+                    nextIntent = r['y_action']
+                    # 获取对应的规则
+                    ruleContent = self.getIntentFlow(nextIntent)
 
-                    # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
-                    if responseJson['action']['complete']:
-                        entities = []
-                        currentQuestionType = 0  # 初始意图识别状态。
-                    else:
-                        currentQuestionType = 2
-                    returnJson = {'status': responseJson['status'], 'data': contentData}
+                    currentQuestionType = 0
+                    responseJson = self.intentAction(contentData, nextIntent,lastEntities,None,query,currentQuestionType)
+                elif ruleMatch == '否定':
+                    contentData.append({"type": 0, "message": r['in_hint']})
+                    nextIntent = r['in_action']
+                    responseJson = self.intentAction(contentData, nextIntent,
+                                                     None, None, query,
+                                                     currentQuestionType)
+                # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
+                if responseJson['action']['complete']:
+                    entities = []
+                    currentQuestionType = 0  # 初始意图识别状态。
+                else:
+                    currentQuestionType = 2
+                returnJson = {'status': responseJson['status'], 'data': contentData}
             elif currentQuestionType == 3:
                 pre_question = lastResponseJson['pre_question']
                 # 获取历史input
                 ruleMatch = self.ruleMatch(pre_question, query)
-                if ruleMatch == '是否':
+                if ruleMatch == '确定':
+                    # 获取对应的规则
+                    ruleContent = self.getIntentFlow(lastResponseJson['lastIntent'])
+                    if ruleContent.has_key(lastResponseJson['intentName']):
+                        ruleContent[lastResponseJson['intentName']] = True
+
                     currentQuestionType = 0
                     responseJson = self.intentAction(contentData, lastResponseJson['lastIntent'], lastResponseJson['action']['parameters'], None, query,
                                                      currentQuestionType)
@@ -157,43 +198,52 @@ class ChatbotEngines:
                         currentQuestionType = 2
 
                     returnJson = {'status': responseJson['status'], 'data': contentData}
+                elif ruleMatch == '否定':
+                    currentQuestionType = 0
+                    returnJson = {'status': responseJson['status'], 'data': [{"type": 0, "message": "好的"}]}
+                    # 清空历史缓存
+                    self.resetHistoryIntent()
             else:
                 confidence = None
                 # 查询前置意图
                 intent = data['intent']['name']
-                self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `input` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
-                r = self.n.fetchRow()
-                input = None
-                if r is not None:
-                    input = r['input']
-                    pre_question = r['question']
-                    lastIntent = r['intent']
+                if currentQuestionType == 0:
+                    # 当后置意图为空，检查前置意图
+                    self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `input` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
+                    r = self.n.fetchRow()
+                    input = None
+                    if r is not None:
+                        input = r['input']
+                        pre_question = r['question']
+                        #lastIntent = r['intent']
 
-                if input is not None:
-                    currentQuestionType = 1
-                    content = {"type": 0, "message": pre_question}
-                    status = {"code": 200, "msg": "触发前置意图"}
-                    lastEntities = data['entities']
-                    #输入不为空触发直接返回输入验证问题
-                    returnJson = {'status': status, 'data': [content]}
-                    # 存储responsejson
-                    return returnJson
+                    if input is not None:
+                        currentQuestionType = 1
+                        content = {"type": 0, "message": pre_question}
+                        status = {"code": 200, "msg": "触发前置意图"}
+                        lastEntities = data['entities']
+                        lastIntent = data['intent']['name']
+                        #输入不为空触发直接返回输入验证问题
+                        returnJson = {'status': status, 'data': [content]}
+                        # 存储responsejson
+                        return returnJson
 
                 if currentQuestionType == 2: #状态未2时，表示填充solt状态
                     intent=lastResponseJson['intentName']
                     ruleMatch = self.ruleMatch(lastResponseJson['slotType'],query)
-
-                    if ruleMatch in lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
+                    if ruleMatch is None:#意图判断为空，则重新匹配切换意图
+                        if self.matchHistoryDetails(query,lastResponseJson['slot']):
+                            if entities is not None:
+                                entities.append({'entity': lastResponseJson['slot'], 'value': query})
+                        else:
+                            r = requests.get(self.nluServer + query)
+                            data = json.loads(r.text)
+                            entities = data['entities']
+                            confidence = data['intent']['confidence']
+                            currentQuestionType = 0
+                    elif ruleMatch in lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
                         if entities is not None:
                             entities.append({'entity':lastResponseJson['slot'],'value':query})
-                    else:
-                        #匹配不成功则进行意图识别判定
-                        #匹配规则失败，则获取历史的query + 当前的query组合，再次提问
-                        query = lastResponseJson['query']+","+query
-                        r = requests.get(self.nluServer + query)
-                        data = json.loads(r.text)
-                        entities = data['entities']
-                        confidence = data['intent']['confidence']
                 else:
                     entities = data['entities']
                     confidence = data['intent']['confidence']
@@ -203,7 +253,7 @@ class ChatbotEngines:
                 if responseJson['currentQuestionType'] != 3:
                     if responseJson['action']['complete']:
                         entities = []
-                        currentQuestionType = 0  # 初始意图识别状态。
+                        currentQuestionType = 0 # 初始意图识别状态。
                     else:
                         currentQuestionType = 2
 
@@ -211,31 +261,16 @@ class ChatbotEngines:
                 returnJson = {'status': responseJson['status'], 'data': contentData}
         lastResponseJson = responseJson
 
+        # 获取历史的details，用于酒店名称匹配以及机票名称匹配
+        for content in contentData:
+            if content.has_key('content') and content['content'].has_key('details'):
+                history_details.append(content['content']['details'])
+
         return returnJson
-
-    # 规则匹配
-    def ruleMatch(self,type,query):
-        ruleMatchType = None
-        if '城市' in type:
-            if self.utils.matchCity(query):
-                ruleMatchType = '城市'
-
-        elif '区域' in type:
-            if self.utils.matchAreaByCity(None, query):
-                ruleMatchType = '区域'
-        elif '时间' in type:
-            if self.utils.toGetDate(query) is not None:
-                ruleMatchType = '时间'
-        elif '是否' in type or '是不是' in type:
-            if self.utils.matchComfirm(query):
-                ruleMatchType = '是否'
-
-        return ruleMatchType
-
 
     # 意图处理
     def intentAction(self,data,intent,entities,confidence,query,currentQuestionType):
-        global curslot,history_intents, answer, actionJson, lastResponseJson, existHistory, result_entities, entities_question,status
+        global curslot,history_intents,answer,actionJson,responseJson,lastResponseJson, existHistory, result_entities, entities_question,entities_types,status,historyIntentsInfo,historyIntentsTag
         # 是否存在历史意图
         if currentQuestionType != 2:
             self.n.query("select * from history_scene_info where user_token = \'" + self.token + "\' and complete = False")
@@ -243,7 +278,7 @@ class ChatbotEngines:
             if r is not None:
                 existHistory = True
                 lastResponseJson = json.loads(r['last_response_json'])
-                # history_intents = json.loads(r['history_intents'])
+                self.historyIntentsInfo = json.loads(r['history_intents'])
                 result_entities = json.loads(r['entities'])
             else:
                 existHistory = False
@@ -267,29 +302,30 @@ class ChatbotEngines:
 
                         print("last response is :", lastResponseJson)
                         return lastResponseJson
-            else:
-                if currentQuestionType !=2:
-                    if lastResponseJson is not None and len(lastResponseJson) > 0:
-                        entities = lastResponseJson['action']['parameters']
 
         # 当意图被切换时，更新需要询问的solt,需要保存历史的意图信息。
-
-        # 如果是收集solt状态，则不匹配意图，不重新填充entities_question
         if currentQuestionType!=2:
-            if len(entities_question) == 0 or (len(lastResponseJson) >0  and lastResponseJson['intentName'] != intent):
+            if len(entities_question) == 0 or len(lastResponseJson) >0 and lastResponseJson['intentName'] != intent:
                  # 保存历史意图信息。
                 result_entities = {}
                 entities_question = {}
+                entities_types ={}
                 self.getSlotQuestions(intent)
+                if len(lastResponseJson) > 0:
+                    entities = []
+                    result_entities = self.matchSlot(lastResponseJson,entities_types);
+                    for (k,v) in result_entities.items():
+                        entities.append({"entity":k,"value":v})
 
         complete = False
 
         if status['code'] == 200:
             # 如果没有solt，则直接查询solr
-            if len(entities_question) == 0:
+            # 当当前问题类型是0且无slot问题时complete为True
+            if currentQuestionType == 0 and len(entities_question) == 0:
                 complete = True
             else:
-                if len(entities) == 0:
+                if entities is None or len(entities) == 0 :
                     curslot = entities_question.items()[0][0]
                     answer = entities_question.items()[0][1]
                 else:
@@ -317,66 +353,83 @@ class ChatbotEngines:
                         complete = True
 
                 parametersJson = []
-                for (k2, v2) in result_entities.items():
-                    parametersJson.append({"entity": k2, "value": v2.decode(sys.getdefaultencoding())})
+                if result_entities is not None:
+                    for (k2, v2) in result_entities.items():
+                        parametersJson.append({"entity": k2, "value": v2.decode(sys.getdefaultencoding())})
 
                 actionJson = {"name": "", "complete": complete, "parameters": parametersJson}
 
         # 如果响应问题中包含参数，则替换;
         # 例如确认问题：您申请了${date}去${address}的出差申请，是否确认提交？
-        slots = actionJson['parameters']
-        if answer is not None and "${" in answer:
-            for slot in slots:
-                answer = answer.replace('${' + slot['entity'] + "}", slot['value'])
+        if len(actionJson) > 0:
+            slots = actionJson['parameters']
+            if answer is not None and "${" in answer:
+                for slot in slots:
+                    answer = answer.replace('${' + slot['entity'] + "}", slot['value'])
 
         # 如果complete=True，则调用solr查询具体信息，填充answer属性
         content = {}
+        tag = None
         if complete:
-
-            if len(entities_question) != 0:
-                self.n.query(
-                    'select answer from robot_scene WHERE `name` =\'' + intent + '\'')
-                r = self.n.fetchRow()
-                question = r['answer']
-                 # 通过配置的ai回复进行问题组装
-
-                for slot in slots:
-                    if slot['entity'] != 'comfirm':
-                        question = question.replace('${' + slot['entity'] + "}", slot['value'])
-
-                self.n.query(
-                    'select `storage` from robot_app WHERE id = (select app_id from robot_scene where `name` =\'' +
-                    intent + '\')')
-
-                r = self.n.fetchRow()
-                if r is not None:
-                    # 这里需要做微服务适配
-                    content = self.microservice.route(intent, self.utils.listToMap(slots))
-                else:
-                    content = {"type": 0, "message": question}
-            else:
-                content = self.microservice.route(intent, {"question": query})
+            # 检查是否有action需要执行
+            self.n.query("select act_name,`output` from robot_scene where `name`  = \'" + intent + "\'")
+            r = self.n.fetchRow()
+            if r is not None:
+                actionName = r['act_name']
+                tag = r['output']
+                if actionName is not None and len(actionName) > 0:
+                    #这里需要做微服务适配
+                    content = self.microservice.route(self.username,intent, self.utils.listToMap(slots))
         else:
             content = {"type": 0, "message": answer}
 
-        data.append(content)
-        responseJson = {
-            "sessionId": self.token,
-            "query": query,
-            "intentId": "",
-            "intentName": intent,
-            "confidence": confidence,
-            "action": actionJson,
-            "slot":curslot,#保存历史的slot以及slotType用于模式匹配。
-            "slotType":entities_types[curslot],
-            "currentQuestionType":currentQuestionType,
-            "answer": answer,
-            "status": status
-        }
+        if len(content) > 0:
+            data.append(content)
+
+        if complete:
+            responseJson = {
+                "sessionId": self.token,
+                "query": query,
+                "intentId": "",
+                "intentName": intent,
+                "confidence": confidence,
+                "action": actionJson,
+                "currentQuestionType": currentQuestionType,
+                "lastEntitiesType": entities_types,
+                "answer": answer,
+                "status": status
+            }
+        else:
+            responseJson = {
+                "sessionId": self.token,
+                "query": query,
+                "intentId": "",
+                "intentName": intent,
+                "confidence": confidence,
+                "action": actionJson,
+                "slot": curslot,  # 保存历史的slot以及slotType用于模式匹配。
+                "slotType": entities_types[curslot],
+                "currentQuestionType": currentQuestionType,
+                "lastEntitiesType": entities_types,
+                "answer": answer,
+                "status": status
+            }
 
         # 保存result_entities、responseJson、history_intents
         self.updateUserSceneInfo(intent,existHistory, result_entities, responseJson, complete)
+        lastResponseJson = responseJson
         if complete:
+            # 添加历史意图
+            historyIntentsInfo.append({
+                "intent":intent,
+                "tag":tag,
+                "responseJson":responseJson
+            })
+            if tag is not None :
+                tags = tag.split(",")
+                for item in tags:
+                    historyIntentsTag.append(int(item))
+
             currentQuestionType = 0
             #后置检查
             if not self.afterCheck(data,intent,currentQuestionType,responseJson):
@@ -394,32 +447,30 @@ class ChatbotEngines:
 
     #流程信息
     def ruleAction(self,data,intent,result_entities,currentQuestionType):
-        global ruleComplete,ruleContent
+        global ruleComplete,ruleContent,result
+        if len(ruleContent) == 0 :
+            ruleContent = self.getIntentFlow(intent)
 
-        current_intent = ''
-
-        self.n.query("select * from robot_scene where `input` = (SELECT output from robot_scene where `name` =\'" + intent + "\')")
-        r = self.n.fetchAll()
-        if r is not None and len(r) >0:
-            for result in r:
-                clildIntent = result['name']
-                #调用intentAction
-                ruleContent[unicode(clildIntent)] = False
-
+        if len(ruleContent) > 0:
             ruleComplete = True
+            if ruleContent.has_key(unicode(intent)):
+                ruleContent[unicode(intent)] = True
+
+
+            #获取下一个意图
+            current_intent = ''
             for (k,v) in ruleContent.items():
-                if v is False:
+                if not v:
                     current_intent = k
                     ruleComplete = False
                     break
-
+            # result_entites 转换成entities
             if not ruleComplete:
                 currentQuestionType = 0
-                result =  self.intentAction(data,current_intent, result_entities,None, None,currentQuestionType)
+
+                result = self.intentAction(data, current_intent, None, None, None, currentQuestionType)
                 if result['action']['complete'] and ruleContent.has_key(result['intentName']):
-                    ruleContent[result['intentName']]=True
-            else:
-                ruleContent = {}
+                    ruleContent[result['intentName']] = True
 
             isAllTrue = True
             for (k, v) in ruleContent.items():
@@ -428,19 +479,16 @@ class ChatbotEngines:
                     break
 
             if isAllTrue:
-                ruleContent = {}
-                ruleComplete = True
-                currentQuestionType = 0
+                self.resetHistoryIntent()
 
             return result
-
         return None
 
     #后置检查，
     def afterCheck(self,data,intent,currentQuestionType,responseJson):
         global status
         self.n.query(
-            "select mark.`name` as `check`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id =(select `check` from robot_scene WHERE `name` = \'" + intent + "\') and mark.int_id = scene.id")
+            "select mark.`id` as `check`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id =(select `check` from robot_scene WHERE `name` = \'" + intent + "\') and mark.int_id = scene.id")
         r = self.n.fetchRow()
         check = None
         if r is not None:
@@ -452,20 +500,130 @@ class ChatbotEngines:
             return False
 
         if check is not None:
-            currentQuestionType = 3
-            content = {"type": 0, "message": pre_question}
-            status = {"code": 200, "msg": "触发后置意图"}
-            data.append(content)
-            return True
+            if check not in historyIntentsTag:
+                currentQuestionType = 3
+                content = {"type": 0, "message": pre_question}
+                status = {"code": 200, "msg": "触发后置意图"}
+                data.append(content)
+                return True
+            else:
+                return False
 
             #插入/更新意图信息
     ## 参数 existHistory、 result_entities、responseJson、history_intents
     def updateUserSceneInfo(self,intent,existHistory,result_entities,responseJson,complete):
         if existHistory:
-            sql = "UPDATE history_scene_info set entities =\'"+json.dumps(result_entities)+"\',last_response_json = \'"+json.dumps(responseJson)+"\',complete = "+str(complete)+" WHERE user_token = \'"+self.token+"\' and intent = \'"+intent+"\'"
+            sql = "UPDATE history_scene_info set entities =\'"+json.dumps(result_entities)+"\',last_response_json = \'"+json.dumps(responseJson)+"\',history_intents = \'"+json.dumps(historyIntentsInfo)+"\',complete = "+str(complete)+" WHERE user_token = \'"+self.token+"\' and intent = \'"+intent+"\'"
             print(sql)
             self.n.update(sql)
         else:
-            sql = "INSERT INTO history_scene_info (user_token,entities,intent,last_response_json,complete) VALUES(\'"+self.token+"\',\'"+json.dumps(result_entities)+"\',\'"+intent+"\',\'"+json.dumps(responseJson)+"\',"+str(complete)+")"
+            sql = "INSERT INTO history_scene_info (user_token,entities,intent,last_response_json,history_intents,complete) VALUES(\'"+self.token+"\',\'"+json.dumps(result_entities)+"\',\'"+intent+"\',\'"+json.dumps(responseJson)+"\',\'"+json.dumps(historyIntentsInfo)+"\',"+str(complete)+")"
             print(sql)
             self.n.insert(sql)
+
+    # slot 填充
+    def matchSlot(self,lastResponseJson,entities_types):
+        result = {}
+        lastEntitiesType = lastResponseJson['lastEntitiesType']
+        for slot in lastResponseJson['action']['parameters']:
+            slotType = lastEntitiesType[slot['entity']]
+            for (k,v) in entities_types.items():
+                if slotType == v:
+                    result[k] = slot['value']
+                    break
+
+        return result
+
+    #获取历史的所有slotType:slotValue
+    def getHistorySlotsByType(self):
+        slots = {}
+        intents = self.historyIntent.getHistoryIntents()
+        for intent in intents:
+            entities = intent['responseJson']['action']['parameters']
+            entities_type = intent['responseJson']['lastEntitiesType']
+
+            for entity in entities:
+                for (k,v) in entities_types.items():
+                    if k == entity['entity']:
+                        slots[entities_types[k]] = entity['value']
+                        break
+
+        return slots
+
+    # 规则匹配
+    def ruleMatch(self, type, query):
+        ruleMatchType = None
+        if '城市' in type:
+            if self.utils.matchCity(query):
+                ruleMatchType = '城市'
+
+        elif '区域' in type:
+            if self.utils.matchAreaByCity(None, query):
+                ruleMatchType = '区域'
+        elif '时间' in type:
+            if self.utils.toGetDate(query) is not None:
+                ruleMatchType = '时间'
+        elif '是否' in type or '是不是' in type:
+            if self.utils.matchComfirm(query):
+                ruleMatchType = '确定'
+            else:
+                ruleMatchType = '否定'
+
+        return ruleMatchType
+
+    # 获取意图流程
+    def getIntentFlow(self,intent):
+        intentFlow = OrderedDict()
+        intentFlow[unicode('出差申请')] = False
+        intentFlow[unicode('酒店查询')] = False
+        intentFlow[unicode('订购酒店')] = False
+        intentFlow[unicode('航班查询')] = False
+        intentFlow[unicode('订购机票')] = False
+        if intentFlow.has_key(unicode(intent)):
+            return intentFlow
+
+    # 检查意图是否存在流程中，且是否为已完成意图
+    def checkIntentInFlow(self,intent):
+        if ruleContent.has_key(intent) and ruleContent[intent] == True:
+            return True
+        else:
+            return False
+
+    # 匹配历史详情，查询是否存在对应的酒店/机票信息
+    def matchHistoryDetails(self,query,slot):
+        global history_details
+        if len(history_details) > 0 :
+            for details in history_details:
+                for detail in details:
+                    for (k,v) in detail.items():
+                        if k == slot and (query in v):
+                            return True
+                            break
+        else:
+            return False
+
+    def resetHistoryIntent(self):
+        global answer,complete,result_entities,actionJson,lastResponseJson,entities,entities_question,entities_types,ruleContent,ruleComplete,lastEntities,status,responseJson,currentQuestionType,history_details,historyIntentsInfo,historyIntentsTag
+        answer = ""
+        complete = False
+        result_entities = {}
+        actionJson = {}
+        lastResponseJson = {}
+        entities_question = OrderedDict()
+        entities_types = {}
+        ruleContent = OrderedDict()
+        ruleComplete = True
+        lastEntities = {}
+        entities = []
+        status = {}
+        responseJson = {}
+        currentQuestionType = 0
+
+        pre_question = None
+        curslot = None
+        history_details = []
+        combinationIntents = []
+        # 历史意图
+        historyIntentsInfo = []
+        historyIntentsTag = []
+

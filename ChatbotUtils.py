@@ -121,13 +121,126 @@ class ChatbotUtils:
     def matchComfirm(self,comfirm):
         if comfirm == '是的' or comfirm == '对的' or comfirm =='对' or comfirm == '是' or comfirm == '好' or comfirm =='好的' or comfirm == '嗯' or comfirm == 'ok':
             return True
+        elif comfirm == '不用' or comfirm == '不需要' or comfirm =='不了' or comfirm == '不' or comfirm == 'no' or comfirm == '不确定':
+            return False
 
     def matchSlot(self):
         None
+
+    def weatherConvert(self,details):
+        resultDetails = []
+        for detail in details:
+            if detail['weather'] == '晴':
+                detail['weather'] = 1
+            elif detail['weather'] == '阴':
+                detail['weather'] = 2
+            elif detail['weather'] == '多云':
+                detail['weather'] = 3
+            elif detail['weather'] == '小雨':
+                detail['weather'] = 4
+            elif detail['weather'] == '中到大雨':
+                detail['weather'] = 5
+            elif detail['weather'] == '雷阵雨':
+                detail['weather'] = 6
+
+            resultDetails.append(detail)
+
+        return resultDetails
+
+    def simulation(self,type):
+        if type == '制度':
+            return {
+                "status":{
+                    "code":200,
+                    "msg":"您的APP不是最新版本，请升级！"
+                },
+                "data":[{
+                        "type":"11",  #列表项
+                        "message":"公司制度",
+                        "content":{
+                            "title":"公司制度",
+                            "details":[
+                                {"msg":"作息时间"},
+                                {"msg":"考勤规则"},
+                                {"msg":"考勤规律"},
+                                {"msg":"矿工定义"}
+                            ]
+                        }
+                    }
+                ]
+            }
+        elif type == '给我一张图片':
+            return {
+                "status":{
+                    "code": 200,
+                    "msg": "您的APP不是最新版本，请升级！"
+                },
+                "data":[{
+                    "type":"1",
+                    "fileName":"five_month_report.jpg",
+                    "thumbnailUrl":"http://ai-test.vigortech.cn:5888/static/WechatIMG725.png",
+                    "url":"http://ai-test.vigortech.cn:5888/static/WechatIMG725.png",
+                    "message":"五月份报表图"
+		        }]
+            }
+        elif type == '给我一份pdf文档':
+            return {
+                "status": {
+                    "code": 200,
+                    "msg": "您的APP不是最新版本，请升级！"
+                },
+                "data": [{
+                    "type":"2",
+                    "fileName":"考勤制度.pdf",
+                    "url":"http://ai-test.vigortech.cn:5888/static/50YearsDataScience.pdf",
+                    "message":"考勤制度文档"
+                }]
+            }
+        elif type == '给我一份doc文档':
+            return {
+                "status": {
+                    "code": 200,
+                    "msg": "您的APP不是最新版本，请升级！"
+                },
+                "data": [{
+                    "type":"3",
+                    "fileName":"考勤制度.doc",
+                    "url":"http://ai-test.vigortech.cn:5888/static/微服务目前接口文档.pptx",
+                    "message":"考勤制度文档"
+                }]
+            }
+        elif type == '给我一份ppt文档':
+            return {
+                "status": {
+                    "code": 200,
+                    "msg": "您的APP不是最新版本，请升级！"
+                },
+                "data": [{
+                    "type":"4",
+                    "fileName":"考勤制度.ppt",
+                    "url":"http://ai-test.vigortech.cn:5888/static/蛇口复古装饰品公司.pptx",
+                    "message":"考勤制度文档"
+                }]
+            }
+        elif type == '给我一份excel文档':
+            return {
+                "status": {
+                    "code": 200,
+                    "msg": "您的APP不是最新版本，请升级！"
+                },
+                "data": [{
+                    "type":"5",
+                    "fileName":"考勤制度.xls",
+                    "url":"http://ai-test.vigortech.cn:5888/static/实时流数据采集问题列表.xlsx",
+                    "message":"考勤制度文档"
+                }]
+            }
+
 
 
 if __name__ == '__main__':
     utils = ChatbotUtils()
     #print(datetime.strptime("1月10号", "%m月%d号"))
     #print(utils.toGetDate('下周日'))
+    print('8,72'.split(","))
 

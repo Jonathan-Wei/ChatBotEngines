@@ -3,10 +3,12 @@ import datetime
 from flask import Flask
 from config import config   #加载配置文件
 from ChatbotEngines import *
+from ChatbotUtils import *
 from rasa_nlu.converters import load_data
 from rasa_nlu.config import RasaNLUConfig
 from rasa_nlu.model import Trainer
 from flask import request
+import json
 import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
@@ -19,6 +21,9 @@ config[FLASK_CONFIG].init_app(app)
 
 @app.route('/api/<line>')
 def chat(line):
+    utils = ChatbotUtils()
+    if utils.simulation(line) is not None:
+        return json.dumps(utils.simulation(line))
     token = request.headers['token']
     engines = ChatbotEngines(app,token, "agentId")
     result = engines.request(line)

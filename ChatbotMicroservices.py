@@ -15,7 +15,7 @@ class ChatbotMicroservices:
         self.microservice_port="8008"#app.config['MICROSERVICE_PORT']
         self.solrUrl = "http://ai-test.vigortech.cn:8983/solr/chat_bot"#app.config['SOLR_SERVER_URL']
 
-    def route(self,intent,params):
+    def route(self,username,intent,params):
         responseJson = {}
         url = "http://" + self.microservice_host+":"+self.microservice_port
         if intent == '天气':
@@ -27,6 +27,7 @@ class ChatbotMicroservices:
                 "city":params['city']
             }
             details = self.requst(url,requestParams).json()['data'][0:7]
+            #details = self.utils.weatherConvert(details)
 
             responseJson['type'] = type
             responseJson['message'] = message
@@ -40,7 +41,7 @@ class ChatbotMicroservices:
             type = 0
             requestParams = {
                 'businessTrip':'项目交流',
-                'employeeName':'mao',
+                'employeeName':username,
                 'travelPlace':params['address'],
                 'travelDate':'2018-01-20'
             }
@@ -90,16 +91,19 @@ class ChatbotMicroservices:
             }
             return responseJson
         elif intent == '订购机票':
-            #customerNumber=12345678998&customerName=hewei&departureDate=2017-01-21 17:25:00&flightNumber=CZ3568
             url = url + "/travel/inserAirfareOrder"
             type = 0
+            params['customerNumber'] = '12691999664'
+            params['customerName'] = username
             r = self.requst(url, params).json()
             responseJson['type'] = type
             responseJson['message'] = r['message']+"订单序号："+r['orderSerial']
             return responseJson
         elif intent == '订购酒店':
-            # hotelName = 深圳景田酒店&customerNumber=12691999664&customerName=qinbojing2& arrivalDate=2018-01-17
             url = url + "/travel/insertHoteOrder"
+            params['customerNumber'] = '12691999664'
+            params['customerName'] = username
+
             r = self.requst(url, params).json()
             type = 0
             responseJson['type'] = type
