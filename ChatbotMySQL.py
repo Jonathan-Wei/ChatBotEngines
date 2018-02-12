@@ -81,6 +81,9 @@ class ChatbotMySQL:
         _sql = "".join([_prefix, condition])
         return self.cur.execute(_sql)
 
+    def deleteCache(self,sql):
+        return self.cur.execute(sql)
+
     def getLastInsertId(self):
         return self.cur.lastrowid
 

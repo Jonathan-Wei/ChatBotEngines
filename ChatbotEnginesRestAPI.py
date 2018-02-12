@@ -1,13 +1,12 @@
 #-*- coding=utf-8 -*-
 import datetime
-from flask import Flask
+from flask import Flask,session, redirect, url_for, escape, request, g
 from config import config   #加载配置文件
 from ChatbotEngines import *
 from ChatbotUtils import *
 from rasa_nlu.converters import load_data
 from rasa_nlu.config import RasaNLUConfig
 from rasa_nlu.model import Trainer
-from flask import request
 import json
 import sys
 reload(sys)
@@ -19,14 +18,23 @@ app = Flask(__name__)
 app.config.from_object(config[FLASK_CONFIG])
 config[FLASK_CONFIG].init_app(app)
 
+users = UsersInfo()
+
 @app.route('/api/<line>')
 def chat(line):
+    g._users = users
+
     utils = ChatbotUtils()
+
     if utils.simulation(line) is not None:
         return json.dumps(utils.simulation(line))
     token = request.headers['token']
-    engines = ChatbotEngines(app,token, "agentId")
-    result = engines.request(line)
+    engines = ChatbotEngines(app, token, "agentId")
+    if u'清除历史记录' == line:
+        engines.delete()
+        result = json.dumps({'status':{"code": 200, "msg": "触发前置意图"},'data': [{"type":0,"message":u"清除成功"}]})
+    else:
+        result = engines.request(line)
     return result
 
 
