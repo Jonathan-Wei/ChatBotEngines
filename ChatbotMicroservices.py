@@ -97,7 +97,8 @@ class ChatbotMicroservices:
             params['customerName'] = username
             r = self.requst(url, params).json()
             responseJson['type'] = type
-            responseJson['message'] = r['message']+"订单序号："+r['orderSerial']
+            message = r['message'].replace("您好 admin 您预订的", "").replace("已预订成功！将于于：", "将于")
+            responseJson['message'] = message+"订单序号："+r['orderSerial']
             return responseJson
         elif intent == '订购酒店':
             url = url + "/travel/insertHoteOrder"
@@ -107,7 +108,8 @@ class ChatbotMicroservices:
             r = self.requst(url, params).json()
             type = 0
             responseJson['type'] = type
-            responseJson['message'] = r['message'] + "订单序号：" + r['orderSerial']
+            message = "酒店名称："+r['message'].replace("您好！ admin 您所预订的","").replace(" 已成功！","")
+            responseJson['message'] = message + "，订单序号：" + r['orderSerial']
             return responseJson
         else:
             question = params['question']
@@ -178,4 +180,4 @@ class ChatbotMicroservices:
 
 if __name__ == '__main__':
     mic = ChatbotMicroservices()
-    print(json.dumps(mic.route("出差申请",{"question":"我明天要去北京出差"})))
+    print(json.dumps(mic.route("admin","订购机票",{"flightNumber":"CA3220","departureDate":"2018-01-17"})))

@@ -85,7 +85,8 @@ class ChatbotUtils:
         elif dateStr == '周日' or dateStr =='星期日' or dateStr =='星期天' or dateStr =='周天':
             resultDate = today - datetime.timedelta(weekday + 6)
         else:
-            resultDate = dateStr
+            return None
+            #resultDate = dateStr
         return resultDate
 
     def matchCity(self,city):
@@ -241,6 +242,6 @@ class ChatbotUtils:
 if __name__ == '__main__':
     utils = ChatbotUtils()
     #print(datetime.strptime("1月10号", "%m月%d号"))
-    #print(utils.toGetDate('下周日'))
-    print('8,72'.split(","))
+    print(utils.toGetDate('"1月10号"'))
+    #print('8,72'.split(","))
 

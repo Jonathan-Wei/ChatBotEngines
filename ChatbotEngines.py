@@ -76,8 +76,6 @@ class ChatbotEngines:
             self.response.entities_question[result['slot']] = result['slot_question']
             self.response.entities_types[result['slot']] = result['slot_type'].decode(sys.getdefaultencoding())
 
-        # 字段匹配
-
     #验证用户token
     def validate(self):
         self.n.query("select * from `sys_user_config` where `token`=\'"+self.token+"\'")
@@ -279,7 +277,8 @@ class ChatbotEngines:
 
                 if self.response.currentQuestionType == 2: #状态未2时，表示填充solt状态
                     intent=self.response.lastResponseJson['intentName']
-                    ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
+                    ruleMatch = self.matchType(query)
+                    #ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
                     if ruleMatch is None:#意图判断为空，则重新匹配切换意图
                         if self.matchHistoryDetails(query,self.response.lastResponseJson['slot']):
                             if self.response.entities is not None:
@@ -293,6 +292,17 @@ class ChatbotEngines:
                     elif ruleMatch in self.response.lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
                         if self.response.entities is not None:
                             self.response.entities.append({'entity':self.response.lastResponseJson['slot'],'value':query})
+                    else:
+                        # 匹配其他的slot信息
+                        slot = ''
+                        for (k, v) in self.response.entities_types.items():
+                            if ruleMatch in v:
+                                slot = k
+                                break
+
+                        if self.response.entities is not None and len(slot) > 0:
+                            self.response.entities.append({'entity':slot,'value':self.response.entities_question[slot]})
+
                 else:
                     self.response.entities = data['entities']
                     confidence = data['intent']['confidence']
@@ -320,8 +330,6 @@ class ChatbotEngines:
 
     # 意图处理
     def intentAction(self,data,intent,entities,confidence,query,currentQuestionType):
-
-
         #历史意图是否一致
         if unicode(intent) in self.intents:
             if confidence is not None:
@@ -622,6 +630,19 @@ class ChatbotEngines:
 
         return ruleMatchType
 
+    def matchType(self,query):
+        if self.utils.matchCity(query):
+            return "城市"
+        elif self.utils.matchAreaByCity(None, query):
+            return "区域"
+        elif self.utils.toGetDate(query) is not None:
+            return "时间"
+        else:
+            if self.utils.matchComfirm(query):
+                return "确定"
+            else:
+                return "否定"
+
     # 获取流程询问以及对应的操作
     def getIntentFlowInfo(self):
         return {"ask":"是否提交${date}去${address}的出差申请？","action":"出差申请"}
@@ -696,6 +717,6 @@ class ChatbotEngines:
         for action in self.response.historyAction:
             responseContent = self.microservice.route(self.username,action['action'],action['params'])
             if responseContent is not None and responseContent.has_key('message'):
-                content = content + responseContent['message']
+                content = content + responseContent['message']+"\n"
 
         return {"type": 0, "message": content}
