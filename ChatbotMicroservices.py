@@ -5,7 +5,10 @@ import requests
 import json
 from ChatbotUtils import *
 reload(sys)
+import logging
 sys.setdefaultencoding('utf-8')
+
+logger = logging.getLogger(__name__)
 
 class ChatbotMicroservices:
 
@@ -97,7 +100,7 @@ class ChatbotMicroservices:
             params['customerName'] = username
             r = self.requst(url, params).json()
             responseJson['type'] = type
-            message = r['message'].replace("您好 admin 您预订的", "").replace("已预订成功！将于于：", "将于")
+            message = r['message'].replace("您好 "+username+" 您预订的", "").replace("已预订成功！将于于：", "将于")
             responseJson['message'] = message+"订单序号："+r['orderSerial']
             return responseJson
         elif intent == '订购酒店':
@@ -108,8 +111,16 @@ class ChatbotMicroservices:
             r = self.requst(url, params).json()
             type = 0
             responseJson['type'] = type
-            message = "酒店名称："+r['message'].replace("您好！ admin 您所预订的","").replace(" 已成功！","")
+            message = "酒店名称："+r['message'].replace("您好！ "+username
+                                                   +" 您所预订的","").replace(" 已成功！","")
             responseJson['message'] = message + "，订单序号：" + r['orderSerial']
+            return responseJson
+        elif self.utils.RegularMatchUrl(intent): # 微服务地址
+            url = intent
+            r = self.requst(url, params).json()
+            type = 0
+            responseJson['type'] = type
+            responseJson['message'] = r
             return responseJson
         else:
             question = params['question']
