@@ -1,6 +1,7 @@
 #-*- coding=utf-8 -*-
 import sys
 import datetime
+import re
 #from datetime import datetime
 import json
 reload(sys)
@@ -124,6 +125,8 @@ class ChatbotUtils:
             return True
         elif comfirm == '不用' or comfirm == '不需要' or comfirm =='不了' or comfirm == '不' or comfirm == 'no' or comfirm == '不确定':
             return False
+        else:
+            return None
 
     def matchSlot(self):
         None
@@ -236,6 +239,17 @@ class ChatbotUtils:
                     "message":"考勤制度文档"
                 }]
             }
+
+    def RegularMatchUrl(url):
+        pattern = re.match(
+            r'(http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?', url,
+            re.IGNORECASE)
+        if pattern:
+            print url
+            return True
+        else:
+            print "invalid url"
+            return False
 
 
 

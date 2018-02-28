@@ -230,34 +230,21 @@ class ChatbotEngines:
         if len(content) > 0:
             data.append(content)
 
-        if self.response.complete:
-            self.response.responseJson = {
-                "sessionId": self.token,
-                "query": query,
-                "intentId": "",
-                "intentName": intent,
-                "confidence": confidence,
-                "action": self.response.actionJson,
-                "currentQuestionType": self.response.currentQuestionType,
-                "lastEntitiesType": self.response.entities_types,
-                "answer": self.response.answer,
-                "status": self.response.status
-            }
-        else:
-            self.response.responseJson = {
-                "sessionId": self.token,
-                "query": query,
-                "intentId": "",
-                "intentName": intent,
-                "confidence": confidence,
-                "action": self.response.actionJson,
-                "slot": self.response.curslot,  # 保存历史的slot以及slotType用于模式匹配。
-                "slotType": self.response.entities_types[self.response.curslot],
-                "currentQuestionType": self.response.currentQuestionType,
-                "lastEntitiesType": self.response.entities_types,
-                "answer": self.response.answer,
-                "status": self.response.status
-            }
+        self.response.responseJson = {
+            "sessionId": self.token,
+            "query": query,
+            "intentId": "",
+            "intentName": intent,
+            "confidence": confidence,
+            "action": self.response.actionJson,
+            "currentQuestionType": self.response.currentQuestionType,
+            "lastEntitiesType": self.response.entities_types,
+            "answer": self.response.answer,
+            "status": self.response.status
+        }
+        if not self.response.complete:
+            self.response.responseJson['slot'] = self.response.curslot # 保存历史的slot以及slotType用于模式匹配。
+            self.response.responseJson['slotType'] = self.response.entities_types[self.response.curslot]
 
         # 保存result_entities、responseJson、history_intents
         self.updateUserSceneInfo(intent,self.response.existHistory, self.response.result_entities, self.response.responseJson, self.response.complete)
@@ -286,11 +273,7 @@ class ChatbotEngines:
                 self.response.responseJson['currentQuestionType'] = 3
 
         self.response.lastResponseJson = self.response.responseJson
-        # self.updateUserSceneInfo(intent, self.response.existHistory, self.response.result_entities,
-        #                          self.response.responseJson, self.response.complete)
-
         print("response is :", self.response.responseJson)
-
 
         return self.response.responseJson
 
@@ -304,7 +287,6 @@ class ChatbotEngines:
             self.response.ruleComplete = True
             if self.response.ruleContent.has_key(unicode(intent)):
                 self.response.ruleContent[unicode(intent)] = True
-
 
             #获取下一个意图
             current_intent = ''
@@ -427,10 +409,13 @@ class ChatbotEngines:
         elif self.utils.toGetDate(query) is not None:
             return "时间"
         else:
-            if self.utils.matchComfirm(query):
-                return "确定"
+            if self.utils.matchComfirm(query) is None:
+                return None
             else:
-                return "否定"
+                if self.utils.matchComfirm(query):
+                    return "确定"
+                else:
+                    return "否定"
 
     # 获取流程询问以及对应的操作
     def getIntentFlowInfo(self):
@@ -746,9 +731,13 @@ class ChatbotEngines:
             else:
                 r = requests.get(self.nluServer + query)
                 data = json.loads(r.text)
-                self.response.entities = data['entities']
-                confidence = data['intent']['confidence']
-                self.response.currentQuestionType = 0
+                if self.response.responseJson['intentName'] != data['intent']['name']:
+                    self.response.entities = data['entities']
+                    confidence = data['intent']['confidence']
+                    self.response.currentQuestionType = 0
+                else:
+                    for entity in data['entities']:
+                        self.response.entities.append(entity)
         elif ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
             if self.response.entities is not None:
                 self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
