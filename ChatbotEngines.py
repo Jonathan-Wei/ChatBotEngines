@@ -8,7 +8,10 @@ from collections import OrderedDict
 from flask import g
 import sys
 reload(sys)
+import logging
 sys.setdefaultencoding('utf-8')
+
+logger = logging.getLogger(__name__)
 
 class UsersInfo:
     def __init__(self):
@@ -402,18 +405,29 @@ class ChatbotEngines:
 
     # 获取流程询问以及对应的操作
     def getIntentFlowInfo(self):
-        return {"ask":"是否提交${date}去${address}的出差申请？","action":"出差申请"}
+        return {"ask":self.response.intentFlowInfo.ask,"action":self.response.intentFlowInfo.comfirmAction}
 
     # 获取意图流程
     def getIntentFlow(self,intent):
         intentFlow = OrderedDict()
-        intentFlow[unicode('出差申请')] = False
-        intentFlow[unicode('酒店查询')] = False
-        intentFlow[unicode('订购酒店')] = False
-        intentFlow[unicode('航班查询')] = False
-        intentFlow[unicode('订购机票')] = False
-        if intentFlow.has_key(unicode(intent)):
-            return intentFlow
+        self.n.query("select * from robot_process WHERE trigger_intent = \'"+intent+"\' and del_flag = 0")
+        r = self.n.fetchRow()
+
+        if r is not None:
+            intents = json.loads(r['content'],encoding="utf8")
+            for item in intents:
+                intentFlow[item['itName']] = False
+
+            if intentFlow.has_key(unicode(intent)):
+                self.response.intentFlowInfo.intentFlow = intentFlow
+                self.response.intentFlowInfo.comfirmAction = r['y_action']
+                self.response.intentFlowInfo.negativeAction = r['n_action']
+                self.response.intentFlowInfo.ask = r['ask']
+                return intentFlow
+        else:
+            return None
+
+
 
     # 检查意图是否存在流程中，且是否为已完成意图
     def checkIntentInFlow(self,intent):
@@ -586,7 +600,8 @@ class ChatbotEngines:
         if ruleMatch == '确定':
             # 获取对应的规则
             self.response.ruleContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
-            if self.response.ruleContent.has_key(self.response.lastResponseJson['intentName']):
+
+            if self.response.ruleContent is not None and len(self.response.ruleContent) > 0 and self.response.ruleContent.has_key(self.response.lastResponseJson['intentName']):
                 self.response.ruleContent[self.response.lastResponseJson['intentName']] = True
 
             self.response.currentQuestionType = 0
@@ -735,6 +750,7 @@ class ChatbotEngines:
             if self.response.entities is not None and len(slot) > 0:
                 self.response.entities.append({'entity': slot, 'value': self.response.entities_question[slot]})
 
+    # 填充responseJson
     def responseJsonStuff(self,content,data,query,intent,confidence):
         if len(content) > 0:
             data.append(content)

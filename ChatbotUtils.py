@@ -2,10 +2,12 @@
 import sys
 import datetime
 import re
-#from datetime import datetime
 import json
 reload(sys)
+import logging
 sys.setdefaultencoding('utf-8')
+
+logger = logging.getLogger(__name__)
 
 cityJson = None
 citys = []

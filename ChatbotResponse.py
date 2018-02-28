@@ -1,5 +1,6 @@
 #-*- coding=utf-8 -*-
 from collections import OrderedDict
+from ChatbotIntentFlow import *
 
 class ChatbotResponse:
 
@@ -30,3 +31,5 @@ class ChatbotResponse:
 
         self.returnJson = {}
         self.existHistory = False
+
+        self.intentFlowInfo = ChatbotIntentFlow()
