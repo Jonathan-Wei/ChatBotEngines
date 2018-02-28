@@ -227,24 +227,7 @@ class ChatbotEngines:
         else:
             content = {"type": 0, "message": self.response.answer}
 
-        if len(content) > 0:
-            data.append(content)
-
-        self.response.responseJson = {
-            "sessionId": self.token,
-            "query": query,
-            "intentId": "",
-            "intentName": intent,
-            "confidence": confidence,
-            "action": self.response.actionJson,
-            "currentQuestionType": self.response.currentQuestionType,
-            "lastEntitiesType": self.response.entities_types,
-            "answer": self.response.answer,
-            "status": self.response.status
-        }
-        if not self.response.complete:
-            self.response.responseJson['slot'] = self.response.curslot # 保存历史的slot以及slotType用于模式匹配。
-            self.response.responseJson['slotType'] = self.response.entities_types[self.response.curslot]
+        self.responseJsonStuff(content,data,query,intent,confidence)
 
         # 保存result_entities、responseJson、history_intents
         self.updateUserSceneInfo(intent,self.response.existHistory, self.response.result_entities, self.response.responseJson, self.response.complete)
@@ -733,7 +716,7 @@ class ChatbotEngines:
                 data = json.loads(r.text)
                 if self.response.responseJson['intentName'] != data['intent']['name']:
                     self.response.entities = data['entities']
-                    confidence = data['intent']['confidence']
+                    self.response.confidence = data['intent']['confidence']
                     self.response.currentQuestionType = 0
                 else:
                     for entity in data['entities']:
@@ -752,5 +735,22 @@ class ChatbotEngines:
             if self.response.entities is not None and len(slot) > 0:
                 self.response.entities.append({'entity': slot, 'value': self.response.entities_question[slot]})
 
+    def responseJsonStuff(self,content,data,query,intent,confidence):
+        if len(content) > 0:
+            data.append(content)
 
-
+        self.response.responseJson = {
+            "sessionId": self.token,
+            "query": query,
+            "intentId": "",
+            "intentName": intent,
+            "confidence": confidence,
+            "action": self.response.actionJson,
+            "currentQuestionType": self.response.currentQuestionType,
+            "lastEntitiesType": self.response.entities_types,
+            "answer": self.response.answer,
+            "status": self.response.status
+        }
+        if not self.response.complete:
+            self.response.responseJson['slot'] = self.response.curslot # 保存历史的slot以及slotType用于模式匹配。
+            self.response.responseJson['slotType'] = self.response.entities_types[self.response.curslot]
