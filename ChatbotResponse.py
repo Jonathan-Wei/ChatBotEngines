@@ -18,7 +18,7 @@ class ChatbotResponse:
         self.entities = []  # 识别的entities
         self.status = {}
         self.responseJson = {}  # 响应信息
-        self.currentQuestionType = 0
+        self.currentQuestionType = 0  # 1-为前置询问，2-slot询问，3-后置询问，4-流程规则询问
 
         self.pre_question = None  # 上一次的问题信息
         self.curslot = None

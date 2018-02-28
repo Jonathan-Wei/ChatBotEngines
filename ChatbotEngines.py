@@ -10,8 +10,6 @@ import sys
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-# noinspection PyGlobalUndefined
-
 class UsersInfo:
     def __init__(self):
         self.users = {}
@@ -91,168 +89,21 @@ class ChatbotEngines:
         contentData = []
 
         # 是否存在历史意图
-        if self.response.currentQuestionType != 2:
-            self.n.query(
-                "select * from history_scene_info where user_token = \'" + self.token + "\' and complete = False")
-            r = self.n.fetchRow()
-            if r is not None:
-                self.response.existHistory = True
-                if len(self.response.lastResponseJson) == 0:
-                    self.response.lastResponseJson = json.loads(r['last_response_json'],encoding="utf8")
-                    self.historyIntentsInfo = json.loads(r['history_intents'],encoding="utf8")
-                    self.response.result_entities = json.loads(r['entities'],encoding="utf8")
-            else:
-                self.response.existHistory = False
-        else:
-            self.response.existHistory = True
+        self.checkExistHistoryIntent()
 
         # 判断是否ruleContent 是否空
             #不为空  判断是否已经匹配参数及调用历史意图信息，进行询问
         if len(self.response.ruleContent)>0 or not self.response.ruleComplete:
             if self.response.currentQuestionType == 4:
-                # 处理流程询问信息。
-                # 获取所有的slot信息，进行问答匹配
-                params = self.getHistorySlots()
-                # 获取规则id，匹配获取对应的询问信息，以及动作
-                ruleInfo = self.getIntentFlowInfo()
-                ask = ruleInfo['ask']
-                # if ask is not None and "${" in ask:
-                #     for (k, v) in params.items():
-                #         ask = ask.replace('${' + k + "}", v)
-                ask = self.variableReplace(ask,params)
-
-                ruleMatch = self.ruleMatch(ask, query)
-                if ruleMatch == '确定':
-                    action = ruleInfo['action']
-                    # 通过动作名称匹配微服务
-                    content = self.microservice.route(self.username, action, params)
-                    contentData.append(content)
-
-                    contentData.append(self.executeAction())
-                    self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
-                    # 确认则执行后置动作
-
-                self.resetHistoryIntent()
+                self.ruleInspection(contentData,query)
             else:
-                if self.response.lastResponseJson['action']['complete']:
-                    for (k,v) in self.response.ruleContent.items():
-                        if k == self.response.lastResponseJson['intentName']:
-                            self.response.ruleContent[k] = True
-
-                for (k,v) in self.response.ruleContent.items():
-                    if v is False:
-                        current_intent = k
-                        self.response.ruleComplete = False
-                        break
-                if not self.response.ruleComplete:
-                    if not self.response.lastResponseJson['action']['complete']:
-                        #intentAction(self,data,intent,entities,confidence,query,currentQuestionType):
-                        ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
-                        if ruleMatch is None:
-                            #意图判断为空，则重新匹配切换意图
-                            if self.matchHistoryDetails(query,self.response.lastResponseJson['slot']):
-                                if self.response.entities is not None:
-                                    self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
-                            else:
-                                r = requests.get(self.nluServer + query)
-                                data = json.loads(r.text)
-                                self.response.entities = data['entities']
-                                confidence = data['intent']['confidence']
-                                self.response.currentQuestionType = 0
-                        else:
-                            if ruleMatch in self.response.lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
-                                if self.response.entities is not None:
-                                    self.response.entities.append({'entity':self.response.lastResponseJson['slot'],'value':query})
-
-                        self.response.responseJson = self.intentAction(contentData, current_intent, self.response.entities, None, query,self.response.currentQuestionType)
-                        if self.response.responseJson['action']['complete'] and self.response.ruleContent.has_key(self.response.responseJson['intentName']):
-                            self.response.ruleContent[self.response.responseJson['intentName']] = True
-
-                        self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
-
-                        isAllTrue = True
-                        for (k, v) in self.response.ruleContent.items():
-                            if v is False:
-                                isAllTrue = False
-                                break
-
-                        if isAllTrue:
-                            # 获取所有的slot信息，进行问答匹配
-                            params = self.getHistorySlots()
-
-                            # 获取规则id，匹配获取对应的询问信息，以及动作
-                            ruleInfo = self.getIntentFlowInfo()
-
-                            # 设置询问类型为规则询问
-                            self.response.currentQuestionType = 4
-                            # 获取询问问题
-                            ask = ruleInfo['ask']
-                            # if ask is not None and "${" in ask:
-                            #     for (k,v) in params.items():
-                            #         ask = ask.replace('${' + k + "}", v)
-                            ask = self.variableReplace(ask, params)
-
-                            contentData.append({"type":0,"message":ask})
-                            # 返回询问信息json
-                            self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+                self.ruleCompleteCheck(contentData,query)
         else:
-            if len(self.response.lastResponseJson)>0 and self.response.lastResponseJson['currentQuestionType'] == 3:
-                self.response.currentQuestionType =3
             #保存当前问题类型
             if self.response.currentQuestionType == 1:
-                # 获取历史input
-                ruleMatch = self.ruleMatch(self.response.pre_question, query)
-                # 获取否定触发的动作，触发酒店/机票查询
-                self.n.query(
-                    "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.input")
-                r = self.n.fetchRow()
-                if ruleMatch == '确定':
-                    nextIntent = r['y_action']
-                    # 获取对应的规则
-                    self.response.ruleContent = self.getIntentFlow(nextIntent)
-
-                    self.response.currentQuestionType = 0
-                    self.response.responseJson = self.intentAction(contentData, nextIntent,self.response.lastEntities,None,query,self.response.currentQuestionType)
-                elif ruleMatch == '否定':
-                    contentData.append({"type": 0, "message": r['in_hint']})
-                    nextIntent = r['in_action']
-                    self.response.responseJson = self.intentAction(contentData, nextIntent,
-                                                     None, None, query,
-                                                     self.response.currentQuestionType)
-                # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
-                if self.response.responseJson['action']['complete']:
-                    self.response.entities = []
-                    self.response.currentQuestionType = 0  # 初始意图识别状态。
-                else:
-                    self.response.currentQuestionType = 2
-                self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+                self.preInspection(contentData,query)
             elif self.response.currentQuestionType == 3:
-                self.response.pre_question = self.response.lastResponseJson['pre_question']
-                # 获取历史input
-                ruleMatch = self.ruleMatch(self.response.pre_question, query)
-                if ruleMatch == '确定':
-                    # 获取对应的规则
-                    self.response.ruleContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
-                    if self.response.ruleContent.has_key(self.response.lastResponseJson['intentName']):
-                        self.response.ruleContent[self.response.lastResponseJson['intentName']] = True
-
-                    self.response.currentQuestionType = 0
-                    self.response.responseJson = self.intentAction(contentData, self.response.lastResponseJson['lastIntent'], self.response.lastResponseJson['action']['parameters'], None, query,
-                                                                   self.response.currentQuestionType)
-
-                    # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
-                    if self.response.responseJson['action']['complete']:
-                        self.response.entities = []
-                        self.response.currentQuestionType = 0  # 初始意图识别状态。
-                    else:
-                        self.response.currentQuestionType = 2
-
-                    self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
-                elif ruleMatch == '否定':
-                    self.response.currentQuestionType = 0
-                    self.response.returnJson = {'status': self.response.responseJson['status'], 'data': [{"type": 0, "message": "好的"}]}
-                    # 清空历史缓存
-                    self.resetHistoryIntent()
+                self.postInspection(contentData,query)
             else:
                 confidence = None
                 # 查询前置意图
@@ -278,39 +129,14 @@ class ChatbotEngines:
                         return self.response.returnJson
 
                 if self.response.currentQuestionType == 2: #状态未2时，表示填充solt状态
-                    intent=self.response.lastResponseJson['intentName']
-                    ruleMatch = self.matchType(query)
-                    #ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
-                    if ruleMatch is None:#意图判断为空，则重新匹配切换意图
-                        if self.matchHistoryDetails(query,self.response.lastResponseJson['slot']):
-                            if self.response.entities is not None:
-                                self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
-                        else:
-                            r = requests.get(self.nluServer + query)
-                            data = json.loads(r.text)
-                            self.response.entities = data['entities']
-                            confidence = data['intent']['confidence']
-                            self.response.currentQuestionType = 0
-                    elif ruleMatch in self.response.lastResponseJson['slotType']:# 规则匹配成功，直接填充entities传到intentAction中
-                        if self.response.entities is not None:
-                            self.response.entities.append({'entity':self.response.lastResponseJson['slot'],'value':query})
-                    else:
-                        # 匹配其他的slot信息
-                        slot = ''
-                        for (k, v) in self.response.entities_types.items():
-                            if ruleMatch in v:
-                                slot = k
-                                break
-
-                        if self.response.entities is not None and len(slot) > 0:
-                            self.response.entities.append({'entity':slot,'value':self.response.entities_question[slot]})
+                    self.slotStuff(query)
 
                 else:
                     self.response.entities = data['entities']
                     confidence = data['intent']['confidence']
 
                 #无前置意图直接走正常流程
-                self.response.responseJson = self.intentAction(contentData,intent,self.response.entities,confidence,query,self.response.currentQuestionType)
+                self.response.responseJson = self.intentAction(contentData,intent,confidence,query)
                 if self.response.responseJson['currentQuestionType'] != 3:
                     if self.response.responseJson['action']['complete']:
                         self.response.entities = []
@@ -331,8 +157,8 @@ class ChatbotEngines:
         return self.response.returnJson
 
     # 意图处理
-    def intentAction(self,data,intent,entities,confidence,query,currentQuestionType):
-        #历史意图是否一致
+    def intentAction(self,data,intent,confidence,query):
+
         if unicode(intent) in self.intents:
             if confidence is not None:
                 if confidence > 0:
@@ -349,7 +175,7 @@ class ChatbotEngines:
 
                         print("last response is :", self.response.lastResponseJson)
                         return self.response.lastResponseJson
-
+        # 历史意图是否一致
         # 当意图被切换时，更新需要询问的solt,需要保存历史的意图信息。
         if self.response.currentQuestionType!=2:
             if len(self.response.entities_question) == 0 or len(self.response.lastResponseJson) >0 and self.response.lastResponseJson['intentName'] != intent:
@@ -360,55 +186,15 @@ class ChatbotEngines:
                 self.getSlotQuestions(intent)
                 if len(self.response.lastResponseJson) > 0:
                     self.response.entities = []
-                    self.response.result_entities = self.matchSlot(self.response.lastResponseJson,self.response.entities_types);
+                    self.response.result_entities = self.matchSlot();
                     for (k,v) in self.response.result_entities.items():
                         self.response.entities.append({"entity":k,"value":v})
 
         self.response.complete = False
 
         if self.response.status['code'] == 200:
-            # 如果没有solt，则直接查询solr
-            # 当当前问题类型是0且无slot问题时complete为True
-            if self.response.currentQuestionType == 0 and len(self.response.entities_question) == 0:
-                self.response.complete = True
-            else:
-                if self.response.entities is None or len(self.response.entities) == 0 :
-                    self.response.curslot = self.response.entities_question.items()[0][0]
-                    self.response.answer = self.response.entities_question.items()[0][1]
-                else:
-                    for (k, v) in self.response.entities_question.items():
-                        isMatch = False
-                        # slot与entities的匹配
-                        for entity in self.response.entities:
-                            if entity['entity'] == k:
-                                isMatch = True
-                                self.response.result_entities[k] = entity['value']
-                                break
-
-                        if not isMatch:
-                            # slot与已识别的slot的匹配
-                            for (k1, v1) in self.response.result_entities.items():
-                                if k1 == k:
-                                    isMatch = True
-                                    break
-
-                        # 未匹配，则获取未匹配的slot进行询问
-                        if not isMatch:
-                            self.response.answer = self.response.entities_question[k]
-                            self.response.curslot = k
-                            self.response.complete = False
-                            break
-
-                    if len(self.response.result_entities) == len(self.response.entities_question):
-                        self.response.complete = True
-
-                parametersJson = []
-                if self.response.result_entities is not None:
-                    for (k2, v2) in self.response.result_entities.items():
-                        parametersJson.append({"entity": k2, "value": v2.decode(sys.getdefaultencoding())})
-
-                self.response.actionJson = {"name": "", "complete": self.response.complete, "parameters": parametersJson}
-
+            # slot信息收集
+            self.collectSlotInfo()
         # 如果响应问题中包含参数，则替换;
         # 例如确认问题：您申请了${date}去${address}的出差申请，是否确认提交？
         if len(self.response.actionJson) > 0:
@@ -491,17 +277,17 @@ class ChatbotEngines:
 
             self.response.currentQuestionType = 0
             #后置检查
-            if not self.afterCheck(data,intent,self.response.currentQuestionType,self.response.responseJson):
+            if not self.afterCheck(data,intent):
                 # 查询关联规则
-                result = self.ruleAction(data, intent, self.response.result_entities, self.response.currentQuestionType)
+                result = self.ruleAction(data, intent)
                 if result is not None:
                     self.response.responseJson = result
             else:
                 self.response.responseJson['currentQuestionType'] = 3
-            #
-            self.response.lastResponseJson = self.response.responseJson
-            self.updateUserSceneInfo(intent, self.response.existHistory, self.response.result_entities,
-                                     self.response.responseJson, self.response.complete)
+
+        self.response.lastResponseJson = self.response.responseJson
+        # self.updateUserSceneInfo(intent, self.response.existHistory, self.response.result_entities,
+        #                          self.response.responseJson, self.response.complete)
 
         print("response is :", self.response.responseJson)
 
@@ -509,7 +295,7 @@ class ChatbotEngines:
         return self.response.responseJson
 
     #流程信息
-    def ruleAction(self,data,intent,result_entities,currentQuestionType):
+    def ruleAction(self,data,intent):
         global result
         if len(self.response.ruleContent) == 0 :
             self.response.ruleContent = self.getIntentFlow(intent)
@@ -531,7 +317,7 @@ class ChatbotEngines:
             if not self.response.ruleComplete:
                 self.response.currentQuestionType = 0
 
-                result = self.intentAction(data, current_intent, None, None, None, self.response.currentQuestionType)
+                result = self.intentAction(data, current_intent, None, None)
                 if result['action']['complete'] and self.response.ruleContent.has_key(result['intentName']):
                     self.response.ruleContent[result['intentName']] = True
 
@@ -539,7 +325,7 @@ class ChatbotEngines:
         return None
 
     #后置检查，
-    def afterCheck(self,data,intent,currentQuestionType,responseJson):
+    def afterCheck(self,data,intent):
         self.n.query(
             "select mark.`id` as `check`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id =(select `check` from robot_scene WHERE `name` = \'" + intent + "\') and mark.int_id = scene.id")
         r = self.n.fetchRow()
@@ -575,7 +361,7 @@ class ChatbotEngines:
             self.n.insert(sql)
 
     # slot 填充
-    def matchSlot(self,lastResponseJson,entities_types):
+    def matchSlot(self):
         result = {}
         lastEntitiesType = self.response.lastResponseJson['lastEntitiesType']
         for slot in self.response.lastResponseJson['action']['parameters']:
@@ -613,16 +399,12 @@ class ChatbotEngines:
 
         return params
 
-
-
-
     # 规则匹配
     def ruleMatch(self, type, query):
         ruleMatchType = None
         if '城市' in type:
             if self.utils.matchCity(query):
                 ruleMatchType = '城市'
-
         elif '区域' in type:
             if self.utils.matchAreaByCity(None, query):
                 ruleMatchType = '区域'
@@ -737,5 +519,249 @@ class ChatbotEngines:
                 ask = ask.replace('${' + k + "}", v)
 
         return ask
+
+    # 检查历史意图
+    def checkExistHistoryIntent(self):
+        # 是否存在历史意图
+        if self.response.currentQuestionType != 2:
+            self.n.query(
+                "select * from history_scene_info where user_token = \'" + self.token + "\' and complete = False")
+            r = self.n.fetchRow()
+            if r is not None:
+                self.response.existHistory = True
+                if len(self.response.lastResponseJson) == 0:
+                    self.response.lastResponseJson = json.loads(r['last_response_json'], encoding="utf8")
+                    self.historyIntentsInfo = json.loads(r['history_intents'], encoding="utf8")
+                    self.response.result_entities = json.loads(r['entities'], encoding="utf8")
+            else:
+                self.response.existHistory = False
+        else:
+            self.response.existHistory = True
+
+    # 收集slot
+    def collectSlotInfo(self):
+        # 如果没有slot，则直接查询solr
+        # 当当前问题类型是0且无slot问题时complete为True
+        if self.response.currentQuestionType == 0 and len(self.response.entities_question) == 0:
+            self.response.complete = True
+        else:
+            if self.response.entities is None or len(self.response.entities) == 0:
+                self.response.curslot = self.response.entities_question.items()[0][0]
+                self.response.answer = self.response.entities_question.items()[0][1]
+            else:
+                for (k, v) in self.response.entities_question.items():
+                    isMatch = False
+                    # slot与entities的匹配
+                    for entity in self.response.entities:
+                        if entity['entity'] == k:
+                            isMatch = True
+                            self.response.result_entities[k] = entity['value']
+                            break
+
+                    if not isMatch:
+                        # slot与已识别的slot的匹配
+                        for (k1, v1) in self.response.result_entities.items():
+                            if k1 == k:
+                                isMatch = True
+                                break
+
+                    # 未匹配，则获取未匹配的slot进行询问
+                    if not isMatch:
+                        self.response.answer = self.response.entities_question[k]
+                        self.response.curslot = k
+                        self.response.complete = False
+                        break
+
+                if len(self.response.result_entities) == len(self.response.entities_question):
+                    self.response.complete = True
+
+            parametersJson = []
+            if self.response.result_entities is not None:
+                for (k2, v2) in self.response.result_entities.items():
+                    parametersJson.append({"entity": k2, "value": v2.decode(sys.getdefaultencoding())})
+
+            self.response.actionJson = {"name": "", "complete": self.response.complete, "parameters": parametersJson}
+
+    # 前置检查
+    def preInspection(self,contentData,query):
+        # 获取历史input
+        ruleMatch = self.ruleMatch(self.response.pre_question, query)
+        # 获取否定触发的动作，触发酒店/机票查询
+        self.n.query(
+            "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.input")
+        r = self.n.fetchRow()
+        if ruleMatch == '确定':
+            nextIntent = r['y_action']
+            # 获取对应的规则
+            self.response.ruleContent = self.getIntentFlow(nextIntent)
+
+            self.response.currentQuestionType = 0
+            self.response.responseJson = self.intentAction(contentData, nextIntent, None,query)
+        elif ruleMatch == '否定':
+            contentData.append({"type": 0, "message": r['in_hint']})
+            nextIntent = r['in_action']
+            self.response.responseJson = self.intentAction(contentData, nextIntent,
+                                                           None, query)
+        # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
+        if self.response.responseJson['action']['complete']:
+            self.response.entities = []
+            self.response.currentQuestionType = 0  # 初始意图识别状态。
+        else:
+            self.response.currentQuestionType = 2
+        self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+
+    # 后置检查
+    def postInspection(self,contentData,query):
+        self.response.pre_question = self.response.lastResponseJson['pre_question']
+        # 获取历史input
+        ruleMatch = self.ruleMatch(self.response.pre_question, query)
+        if ruleMatch == '确定':
+            # 获取对应的规则
+            self.response.ruleContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
+            if self.response.ruleContent.has_key(self.response.lastResponseJson['intentName']):
+                self.response.ruleContent[self.response.lastResponseJson['intentName']] = True
+
+            self.response.currentQuestionType = 0
+            self.response.responseJson = self.intentAction(contentData, self.response.lastResponseJson['lastIntent'], None,
+                                                           query)
+
+            # 后置意图匹配后，检查后置的complete是否为true，不为true则更新currenQuestionType = 2
+            if self.response.responseJson['action']['complete']:
+                self.response.entities = []
+                self.response.currentQuestionType = 0  # 初始意图识别状态。
+            else:
+                self.response.currentQuestionType = 2
+
+            self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+        elif ruleMatch == '否定':
+            self.response.currentQuestionType = 0
+            self.response.returnJson = {'status': self.response.responseJson['status'],
+                                        'data': [{"type": 0, "message": "好的"}]}
+            # 清空历史缓存
+            self.resetHistoryIntent()
+
+    # 意图完成检查
+    #def intentCompleteCheck(self):
+
+    # 规则完成检查
+    def ruleCompleteCheck(self,contentData,query):
+        # 如果当前意图完成，则匹配将参数匹配给下一个意图。
+        if self.response.lastResponseJson['action']['complete']:
+            for (k, v) in self.response.ruleContent.items():
+                if k == self.response.lastResponseJson['intentName']:
+                    self.response.ruleContent[k] = True
+
+            for (k, v) in self.response.ruleContent.items():
+                if v is False:
+                    current_intent = k
+                    self.response.ruleComplete = False
+                    break
+        else:
+            current_intent = self.response.lastResponseJson['intentName']
+
+        if not self.response.ruleComplete:
+            if not self.response.lastResponseJson['action']['complete']:
+                ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'], query)
+                if ruleMatch is None:
+                    # 意图判断为空，则重新匹配切换意图
+                    if self.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
+                        if self.response.entities is not None:
+                            self.response.entities.append(
+                                {'entity': self.response.lastResponseJson['slot'], 'value': query})
+                    else:
+                        r = requests.get(self.nluServer + query)
+                        data = json.loads(r.text)
+                        self.response.entities = data['entities']
+                        confidence = data['intent']['confidence']
+                        self.response.currentQuestionType = 0
+                else:
+                    if ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
+                        if self.response.entities is not None:
+                            self.response.entities.append(
+                                {'entity': self.response.lastResponseJson['slot'], 'value': query})
+
+                self.response.responseJson = self.intentAction(contentData, current_intent, None, query)
+                if self.response.responseJson['action']['complete'] and self.response.ruleContent.has_key(
+                        self.response.responseJson['intentName']):
+                    self.response.ruleContent[self.response.responseJson['intentName']] = True
+
+                self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+
+                isAllTrue = True
+                for (k, v) in self.response.ruleContent.items():
+                    if v is False:
+                        isAllTrue = False
+                        break
+
+                if isAllTrue:
+                    # 获取所有的slot信息，进行问答匹配
+                    params = self.getHistorySlots()
+
+                    # 获取规则id，匹配获取对应的询问信息，以及动作
+                    ruleInfo = self.getIntentFlowInfo()
+
+                    # 设置询问类型为规则询问
+                    self.response.currentQuestionType = 4
+                    # 获取询问问题
+                    ask = ruleInfo['ask']
+
+                    ask = self.variableReplace(ask, params)
+
+                    contentData.append({"type": 0, "message": ask})
+                    # 返回询问信息json
+                    self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+
+    # 规则询问
+    def ruleInspection(self,contentData,query):
+        # 处理流程询问信息。
+        # 获取所有的slot信息，进行问答匹配
+        params = self.getHistorySlots()
+        # 获取规则id，匹配获取对应的询问信息，以及动作
+        ruleInfo = self.getIntentFlowInfo()
+        ask = ruleInfo['ask']
+        ask = self.variableReplace(ask, params)
+
+        ruleMatch = self.ruleMatch(ask, query)
+        if ruleMatch == '确定':
+            action = ruleInfo['action']
+            # 通过动作名称匹配微服务
+            content = self.microservice.route(self.username, action, params)
+            contentData.append(content)
+
+            contentData.append(self.executeAction())
+            self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
+            # 确认则执行后置动作
+
+        self.resetHistoryIntent()
+
+    # slot 填充
+    def slotStuff(self,query):
+        intent = self.response.lastResponseJson['intentName']
+        ruleMatch = self.matchType(query)
+        # ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
+        if ruleMatch is None:  # 意图判断为空，则重新匹配切换意图
+            if self.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
+                if self.response.entities is not None:
+                    self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
+            else:
+                r = requests.get(self.nluServer + query)
+                data = json.loads(r.text)
+                self.response.entities = data['entities']
+                confidence = data['intent']['confidence']
+                self.response.currentQuestionType = 0
+        elif ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
+            if self.response.entities is not None:
+                self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
+        else:
+            # 匹配其他的slot信息
+            slot = ''
+            for (k, v) in self.response.entities_types.items():
+                if ruleMatch in v:
+                    slot = k
+                    break
+
+            if self.response.entities is not None and len(slot) > 0:
+                self.response.entities.append({'entity': slot, 'value': self.response.entities_question[slot]})
+
 
 
