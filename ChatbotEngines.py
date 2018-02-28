@@ -116,9 +116,10 @@ class ChatbotEngines:
                 # 获取规则id，匹配获取对应的询问信息，以及动作
                 ruleInfo = self.getIntentFlowInfo()
                 ask = ruleInfo['ask']
-                if ask is not None and "${" in ask:
-                    for (k, v) in params.items():
-                        ask = ask.replace('${' + k + "}", v)
+                # if ask is not None and "${" in ask:
+                #     for (k, v) in params.items():
+                #         ask = ask.replace('${' + k + "}", v)
+                ask = self.variableReplace(ask,params)
 
                 ruleMatch = self.ruleMatch(ask, query)
                 if ruleMatch == '确定':
@@ -186,9 +187,10 @@ class ChatbotEngines:
                             self.response.currentQuestionType = 4
                             # 获取询问问题
                             ask = ruleInfo['ask']
-                            if ask is not None and "${" in ask:
-                                for (k,v) in params.items():
-                                    ask = ask.replace('${' + k + "}", v)
+                            # if ask is not None and "${" in ask:
+                            #     for (k,v) in params.items():
+                            #         ask = ask.replace('${' + k + "}", v)
+                            ask = self.variableReplace(ask, params)
 
                             contentData.append({"type":0,"message":ask})
                             # 返回询问信息json
@@ -481,6 +483,7 @@ class ChatbotEngines:
                 "tag":tag,
                 "responseJson":self.response.responseJson
             })
+
             if tag is not None :
                 tags = tag.split(",")
                 for item in tags:
@@ -495,9 +498,13 @@ class ChatbotEngines:
                     self.response.responseJson = result
             else:
                 self.response.responseJson['currentQuestionType'] = 3
+            #
+            self.response.lastResponseJson = self.response.responseJson
+            self.updateUserSceneInfo(intent, self.response.existHistory, self.response.result_entities,
+                                     self.response.responseJson, self.response.complete)
 
         print("response is :", self.response.responseJson)
-        self.response.lastResponseJson = self.response.responseJson
+
 
         return self.response.responseJson
 
@@ -703,12 +710,14 @@ class ChatbotEngines:
         self.returnJson = {}
         self.existHistory = False
 
+    # 删除缓存
     def delete(self):
         self.response = ChatbotResponse()
         g._users.setUser(self.token, self.response)
 
         self.n.deleteCache("delete from history_scene_info where user_token ='%s' " % self.token)
 
+    # 执行动作
     def executeAction(self):
         if self.response.historyAction is None and len(self.response.historyAction) == 0:
             return None
@@ -717,6 +726,16 @@ class ChatbotEngines:
         for action in self.response.historyAction:
             responseContent = self.microservice.route(self.username,action['action'],action['params'])
             if responseContent is not None and responseContent.has_key('message'):
-                content = content + responseContent['message']+"\n"
+                content = content + responseContent['message']+"。"
 
         return {"type": 0, "message": content}
+
+    # 参数替换
+    def variableReplace(self,ask,params):
+        if ask is not None and "${" in ask:
+            for (k, v) in params.items():
+                ask = ask.replace('${' + k + "}", v)
+
+        return ask
+
+
