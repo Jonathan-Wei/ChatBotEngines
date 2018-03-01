@@ -2,7 +2,6 @@
 from ChatbotMySQL import *
 from ChatbotMicroservices import *
 from ChatbotUtils import *
-from ChatbotHistoryInfo import *
 from ChatbotResponse import *
 from collections import OrderedDict
 from flask import g
@@ -154,7 +153,7 @@ class ChatbotEngines:
         # 获取历史的details，用于酒店名称匹配以及机票名称匹配
         for content in contentData:
             if content.has_key('content') and content['content'].has_key('details'):
-                self.response.history_details.append(content['content']['details'])
+                self.response.historyInfo.historyDetails.append(content['content']['details'])
 
         g._users.setUser(self.token, self.response)
         return self.response.returnJson
@@ -257,7 +256,8 @@ class ChatbotEngines:
             return False
 
         if check is not None:
-            if check not in self.response.historyIntentsTag:
+            #if check not in self.response.historyIntentsTag:
+            if not self.response.historyInfo.matchHistoryIntent(check):
                 self.response.currentQuestionType = 3
                 content = {"type": 0, "message": self.response.pre_question}
                 self.response.status = {"code": 200, "msg": "触发后置意图"}
@@ -270,11 +270,11 @@ class ChatbotEngines:
     ## 参数 existHistory、 result_entities、responseJson、history_intents
     def updateUserSceneInfo(self,intent,existHistory,result_entities,responseJson,complete):
         if existHistory:
-            sql = "UPDATE history_scene_info set entities =\'"+json.dumps(result_entities,ensure_ascii=False).encode("utf8")+"\',last_response_json = \'"+json.dumps(responseJson,ensure_ascii=False).encode("utf8")+"\',history_intents = \'"+json.dumps(self.response.historyIntentsInfo,ensure_ascii=False).encode("utf8")+"\',complete = "+str(complete)+" WHERE user_token = \'"+self.token+"\' and intent = \'"+intent+"\'"
+            sql = "UPDATE history_scene_info set entities =\'"+json.dumps(result_entities,ensure_ascii=False).encode("utf8")+"\',last_response_json = \'"+json.dumps(responseJson,ensure_ascii=False).encode("utf8")+"\',history_intents = \'"+json.dumps(self.response.historyInfo.historyIntentsInfo,ensure_ascii=False).encode("utf8")+"\',complete = "+str(complete)+" WHERE user_token = \'"+self.token+"\' and intent = \'"+intent+"\'"
             print(sql)
             self.n.update(sql)
         else:
-            sql = "INSERT INTO history_scene_info (user_token,entities,intent,last_response_json,history_intents,complete) VALUES(\'"+self.token+"\',\'"+json.dumps(result_entities,ensure_ascii=False).encode("utf8")+"\',\'"+intent+"\',\'"+json.dumps(responseJson,ensure_ascii=False).encode("utf8")+"\',\'"+json.dumps(self.response.historyIntentsInfo,ensure_ascii=False).encode("utf8")+"\',"+str(complete)+")"
+            sql = "INSERT INTO history_scene_info (user_token,entities,intent,last_response_json,history_intents,complete) VALUES(\'"+self.token+"\',\'"+json.dumps(result_entities,ensure_ascii=False).encode("utf8")+"\',\'"+intent+"\',\'"+json.dumps(responseJson,ensure_ascii=False).encode("utf8")+"\',\'"+json.dumps(self.response.historyInfo.historyIntentsInfo,ensure_ascii=False).encode("utf8")+"\',"+str(complete)+")"
             print(sql)
             self.n.insert(sql)
 
@@ -294,7 +294,7 @@ class ChatbotEngines:
     #获取历史的所有slotType:slotValue
     def getHistorySlotsByType(self):
         slots = {}
-        intents = self.historyIntent.getHistoryIntents()
+        intents = self.response.historyInfo.getHistoryIntents()
         for intent in intents:
             self.response.entities = intent['responseJson']['action']['parameters']
             self.response.entities_type = intent['responseJson']['lastEntitiesType']
@@ -306,16 +306,6 @@ class ChatbotEngines:
                         break
 
         return slots
-
-    def getHistorySlots(self):
-        params = {}
-        intents = self.response.historyIntentsInfo
-        for intent in intents:
-            entities = intent['responseJson']['action']['parameters']
-            for entity in entities:
-                params[entity['entity']] = entity['value']
-
-        return params
 
     # 规则匹配
     def ruleMatch(self, type, query):
@@ -386,18 +376,6 @@ class ChatbotEngines:
         else:
             return False
 
-    # 匹配历史详情，查询是否存在对应的酒店/机票信息
-    def matchHistoryDetails(self,query,slot):
-        if len(self.response.history_details) > 0 :
-            for details in self.response.history_details:
-                for detail in details:
-                    for (k,v) in detail.items():
-                        if k == slot and (query.upper() in v):
-                            return True
-                            break
-        else:
-            return False
-
     def resetHistoryIntent(self):
         self.response.answer = ""
         self.response.complete = False
@@ -416,13 +394,12 @@ class ChatbotEngines:
 
         self.response.pre_question = None
         self.response.curslot = None
-        self.response.history_details = []
-        # 历史意图
-        self.response.historyIntentsInfo = []
-        self.response.historyIntentsTag = []
+        self.response.historyInfo = ChatbotHistoryInfo()
 
         self.returnJson = {}
         self.existHistory = False
+
+        self.response.intentFlowInfo = ChatbotIntentFlow()
 
     # 删除缓存
     def delete(self):
@@ -433,11 +410,11 @@ class ChatbotEngines:
 
     # 执行动作
     def executeAction(self):
-        if self.response.historyAction is None and len(self.response.historyAction) == 0:
+        if self.response.historyInfo.historyActions is None and len(self.response.historyInfo.historyActions) == 0:
             return None
 
         content = ''
-        for action in self.response.historyAction:
+        for action in self.response.historyInfo.historyActions:
             responseContent = self.microservice.route(self.username,action['action'],action['params'])
             if responseContent is not None and responseContent.has_key('message'):
                 content = content + responseContent['message']+"。"
@@ -463,7 +440,7 @@ class ChatbotEngines:
                 self.response.existHistory = True
                 if len(self.response.lastResponseJson) == 0:
                     self.response.lastResponseJson = json.loads(r['last_response_json'], encoding="utf8")
-                    self.historyIntentsInfo = json.loads(r['history_intents'], encoding="utf8")
+                    self.response.historyIntentsInfo = json.loads(r['history_intents'], encoding="utf8")
                     self.response.result_entities = json.loads(r['entities'], encoding="utf8")
             else:
                 self.response.existHistory = False
@@ -576,17 +553,8 @@ class ChatbotEngines:
     #意图完成后检查
     def intentCompleteAfterCheck(self, intent, tag, data):
         if self.response.complete:
-            # 添加历史意图
-            self.response.historyIntentsInfo.append({
-                "intent":intent,
-                "tag":tag,
-                "responseJson":self.response.responseJson
-            })
-
-            if tag is not None :
-                tags = tag.split(",")
-                for item in tags:
-                    self.response.historyIntentsTag.append(int(item))
+            # # 添加历史意图
+            self.response.historyInfo.addHistoryIntent(intent,tag,self.response.responseJson)
 
             self.response.currentQuestionType = 0
             #后置检查
@@ -614,7 +582,7 @@ class ChatbotEngines:
                 flag = r['flag']
                 if actionName is not None and len(actionName) > 0:
                     if flag == 1:
-                        self.response.historyAction.append({
+                        self.response.historyInfo.historyActions.append({
                             "action": actionName,
                             "params": self.utils.listToMap(slots)
                         })
@@ -655,7 +623,7 @@ class ChatbotEngines:
                 ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'], query)
                 if ruleMatch is None:
                     # 意图判断为空，则重新匹配切换意图
-                    if self.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
+                    if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                         if self.response.entities is not None:
                             self.response.entities.append(
                                 {'entity': self.response.lastResponseJson['slot'], 'value': query})
@@ -663,7 +631,7 @@ class ChatbotEngines:
                         r = requests.get(self.nluServer + query)
                         data = json.loads(r.text)
                         self.response.entities = data['entities']
-                        confidence = data['intent']['confidence']
+                        self.response.confidence = data['intent']['confidence']
                         self.response.currentQuestionType = 0
                 else:
                     if ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
@@ -686,7 +654,7 @@ class ChatbotEngines:
 
                 if isAllTrue:
                     # 获取所有的slot信息，进行问答匹配
-                    params = self.getHistorySlots()
+                    params = self.response.historyInfo.getHistorySlots()
 
                     # 获取规则id，匹配获取对应的询问信息，以及动作
                     ruleInfo = self.getIntentFlowInfo()
@@ -706,7 +674,7 @@ class ChatbotEngines:
     def ruleInspection(self,contentData,query):
         # 处理流程询问信息。
         # 获取所有的slot信息，进行问答匹配
-        params = self.getHistorySlots()
+        params = self.response.historyInfo.getHistorySlots()
         # 获取规则id，匹配获取对应的询问信息，以及动作
         ruleInfo = self.getIntentFlowInfo()
         ask = ruleInfo['ask']
@@ -731,7 +699,7 @@ class ChatbotEngines:
         ruleMatch = self.matchType(query)
         # ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
         if ruleMatch is None:  # 意图判断为空，则重新匹配切换意图
-            if self.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
+            if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                 if self.response.entities is not None:
                     self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
             else:

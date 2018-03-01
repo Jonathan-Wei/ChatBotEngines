@@ -1,6 +1,7 @@
 #-*- coding=utf-8 -*-
 from collections import OrderedDict
 from ChatbotIntentFlow import *
+from ChatbotHistoryInfo import *
 
 class ChatbotResponse:
 
@@ -23,11 +24,12 @@ class ChatbotResponse:
 
         self.pre_question = None  # 上一次的问题信息
         self.curslot = None
-        self.history_details = []  # 历史详情，用于酒店-航班的选择匹配
-        # 历史意图
-        self.historyIntentsInfo = []  # 历史意图信息
-        self.historyIntentsTag = []  # 历史意图输出标签信息
-        self.historyAction = []
+        # self.history_details = []  # 历史详情，用于酒店-航班的选择匹配
+        # # 历史意图
+        # self.historyIntentsInfo = []  # 历史意图信息
+        # self.historyIntentsTag = []  # 历史意图输出标签信息
+        # self.historyAction = []
+        self.historyInfo = ChatbotHistoryInfo()
 
         self.returnJson = {}
         self.existHistory = False
