@@ -206,57 +206,7 @@ class ChatbotEngines:
                 for slot in slots:
                     self.response.answer = self.response.answer.replace('${' + slot['entity'] + "}", slot['value'])
 
-        # 如果complete=True，则调用solr查询具体信息，填充answer属性
-        content = {}
-        tag = None
-        if self.response.complete:
-
-            # 检查是否有action需要执行，
-            self.n.query("select act_name,`output`,flag from robot_scene where `name`  = \'" + intent + "\'")
-            r = self.n.fetchRow()
-            if r is not None:
-                actionName = r['act_name']
-                tag = r['output']
-                flag = r['flag']
-                if actionName is not None and len(actionName) > 0:
-                    if flag == 1:
-                        self.response.historyAction.append({
-                            "action":actionName,
-                            "params":self.utils.listToMap(slots)
-                        })
-                    else:
-                        #这里需要做微服务适配
-                        content = self.microservice.route(self.username,intent, self.utils.listToMap(slots))
-        else:
-            content = {"type": 0, "message": self.response.answer}
-
-        self.responseJsonStuff(content,data,query,intent,confidence)
-
-        # 保存result_entities、responseJson、history_intents
-        self.updateUserSceneInfo(intent,self.response.existHistory, self.response.result_entities, self.response.responseJson, self.response.complete)
-        self.response.lastResponseJson = self.response.responseJson
-        if self.response.complete:
-            # 添加历史意图
-            self.response.historyIntentsInfo.append({
-                "intent":intent,
-                "tag":tag,
-                "responseJson":self.response.responseJson
-            })
-
-            if tag is not None :
-                tags = tag.split(",")
-                for item in tags:
-                    self.response.historyIntentsTag.append(int(item))
-
-            self.response.currentQuestionType = 0
-            #后置检查
-            if not self.afterCheck(data,intent):
-                # 查询关联规则
-                result = self.processAction(data, intent)
-                if result is not None:
-                    self.response.responseJson = result
-            else:
-                self.response.responseJson['currentQuestionType'] = 3
+        self.intentCompleteCheck(slots,query,intent,confidence,data)
 
         self.response.lastResponseJson = self.response.responseJson
         print("response is :", self.response.responseJson)
@@ -623,8 +573,66 @@ class ChatbotEngines:
             # 清空历史缓存
             self.resetHistoryIntent()
 
+    #意图完成后检查
+    def intentCompleteAfterCheck(self, intent, tag, data):
+        if self.response.complete:
+            # 添加历史意图
+            self.response.historyIntentsInfo.append({
+                "intent":intent,
+                "tag":tag,
+                "responseJson":self.response.responseJson
+            })
+
+            if tag is not None :
+                tags = tag.split(",")
+                for item in tags:
+                    self.response.historyIntentsTag.append(int(item))
+
+            self.response.currentQuestionType = 0
+            #后置检查
+            if not self.afterCheck(data,intent):
+                # 查询关联规则
+                result = self.processAction(data, intent)
+                if result is not None:
+                    self.response.responseJson = result
+            else:
+                self.response.responseJson['currentQuestionType'] = 3
+
     # 意图完成检查
-    #def intentCompleteCheck(self):
+    def intentCompleteCheck(self,slots,query,intent,confidence,data):
+        # 如果complete=True，则调用solr查询具体信息，填充answer属性
+        content = {}
+        tag = None
+        if self.response.complete:
+
+            # 检查是否有action需要执行，
+            self.n.query("select act_name,`output`,flag from robot_scene where `name`  = \'" + intent + "\'")
+            r = self.n.fetchRow()
+            if r is not None:
+                actionName = r['act_name']
+                tag = r['output']
+                flag = r['flag']
+                if actionName is not None and len(actionName) > 0:
+                    if flag == 1:
+                        self.response.historyAction.append({
+                            "action": actionName,
+                            "params": self.utils.listToMap(slots)
+                        })
+                    else:
+                        # 这里需要做微服务适配
+                        content = self.microservice.route(self.username, intent, self.utils.listToMap(slots))
+        else:
+            content = {"type": 0, "message": self.response.answer}
+
+        self.responseJsonStuff(content, data, query, intent, confidence)
+
+        # 保存result_entities、responseJson、history_intents
+        self.updateUserSceneInfo(intent, self.response.existHistory, self.response.result_entities,
+                                 self.response.responseJson, self.response.complete)
+        self.response.lastResponseJson = self.response.responseJson
+
+        self.intentCompleteAfterCheck(intent, tag, data)
+
 
     # 规则完成检查
     def ruleCompleteCheck(self,contentData,query):
