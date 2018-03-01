@@ -13,8 +13,8 @@ class ChatbotResponse:
         self.entities_question = OrderedDict()
 
         self.entities_types = {}  # slot提问类型
-        self.ruleContent = OrderedDict()  # 规则内容
-        self.ruleComplete = True  # 规则是否完整执行
+        self.processContent = OrderedDict()  # 规则内容
+        self.processComplete = True  # 规则是否完整执行
         self.lastEntities = {}
         self.entities = []  # 识别的entities
         self.status = {}

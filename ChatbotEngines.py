@@ -96,7 +96,7 @@ class ChatbotEngines:
 
         # 判断是否ruleContent 是否空
             #不为空  判断是否已经匹配参数及调用历史意图信息，进行询问
-        if len(self.response.ruleContent)>0 or not self.response.ruleComplete:
+        if len(self.response.processContent)>0 or not self.response.processComplete:
             if self.response.currentQuestionType == 4:
                 self.ruleInspection(contentData,query)
             else:
@@ -252,7 +252,7 @@ class ChatbotEngines:
             #后置检查
             if not self.afterCheck(data,intent):
                 # 查询关联规则
-                result = self.ruleAction(data, intent)
+                result = self.processAction(data, intent)
                 if result is not None:
                     self.response.responseJson = result
             else:
@@ -264,30 +264,30 @@ class ChatbotEngines:
         return self.response.responseJson
 
     #流程信息
-    def ruleAction(self,data,intent):
+    def processAction(self,data,intent):
         global result
-        if len(self.response.ruleContent) == 0 :
-            self.response.ruleContent = self.getIntentFlow(intent)
+        if len(self.response.processContent) == 0 :
+            self.response.processContent = self.getIntentFlow(intent)
 
-        if len(self.response.ruleContent) > 0:
-            self.response.ruleComplete = True
-            if self.response.ruleContent.has_key(unicode(intent)):
-                self.response.ruleContent[unicode(intent)] = True
+        if len(self.response.processContent) > 0:
+            self.response.processComplete = True
+            if self.response.processContent.has_key(unicode(intent)):
+                self.response.processContent[unicode(intent)] = True
 
             #获取下一个意图
             current_intent = ''
-            for (k,v) in self.response.ruleContent.items():
+            for (k,v) in self.response.processContent.items():
                 if not v:
                     current_intent = k
-                    self.response.ruleComplete = False
+                    self.response.processComplete = False
                     break
             # result_entites 转换成entities
-            if not self.response.ruleComplete:
+            if not self.response.processComplete:
                 self.response.currentQuestionType = 0
 
                 result = self.intentAction(data, current_intent, None, None)
-                if result['action']['complete'] and self.response.ruleContent.has_key(result['intentName']):
-                    self.response.ruleContent[result['intentName']] = True
+                if result['action']['complete'] and self.response.processContent.has_key(result['intentName']):
+                    self.response.processContent[result['intentName']] = True
 
             return result
         return None
@@ -431,7 +431,7 @@ class ChatbotEngines:
 
     # 检查意图是否存在流程中，且是否为已完成意图
     def checkIntentInFlow(self,intent):
-        if self.response.ruleContent.has_key(intent) and self.response.ruleContent[intent] == True:
+        if self.response.processContent.has_key(intent) and self.response.processContent[intent] == True:
             return True
         else:
             return False
@@ -456,8 +456,8 @@ class ChatbotEngines:
         self.response.lastResponseJson = {}
         self.response.entities_question = OrderedDict()
         self.response.entities_types = {}
-        self.response.ruleContent = OrderedDict()
-        self.response.ruleComplete = True
+        self.response.processContent = OrderedDict()
+        self.response.processComplete = True
         self.response.lastEntities = {}
         self.response.entities = []
         self.response.status = {}
@@ -575,7 +575,7 @@ class ChatbotEngines:
         if ruleMatch == '确定':
             nextIntent = r['y_action']
             # 获取对应的规则
-            self.response.ruleContent = self.getIntentFlow(nextIntent)
+            self.response.processContent = self.getIntentFlow(nextIntent)
 
             self.response.currentQuestionType = 0
             self.response.responseJson = self.intentAction(contentData, nextIntent, None,query)
@@ -599,10 +599,10 @@ class ChatbotEngines:
         ruleMatch = self.ruleMatch(self.response.pre_question, query)
         if ruleMatch == '确定':
             # 获取对应的规则
-            self.response.ruleContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
+            self.response.processContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
 
-            if self.response.ruleContent is not None and len(self.response.ruleContent) > 0 and self.response.ruleContent.has_key(self.response.lastResponseJson['intentName']):
-                self.response.ruleContent[self.response.lastResponseJson['intentName']] = True
+            if self.response.processContent is not None and len(self.response.processContent) > 0 and self.response.processContent.has_key(self.response.lastResponseJson['intentName']):
+                self.response.processContent[self.response.lastResponseJson['intentName']] = True
 
             self.response.currentQuestionType = 0
             self.response.responseJson = self.intentAction(contentData, self.response.lastResponseJson['lastIntent'], None,
@@ -630,19 +630,19 @@ class ChatbotEngines:
     def ruleCompleteCheck(self,contentData,query):
         # 如果当前意图完成，则匹配将参数匹配给下一个意图。
         if self.response.lastResponseJson['action']['complete']:
-            for (k, v) in self.response.ruleContent.items():
+            for (k, v) in self.response.processContent.items():
                 if k == self.response.lastResponseJson['intentName']:
-                    self.response.ruleContent[k] = True
+                    self.response.processContent[k] = True
 
-            for (k, v) in self.response.ruleContent.items():
+            for (k, v) in self.response.processContent.items():
                 if v is False:
                     current_intent = k
-                    self.response.ruleComplete = False
+                    self.response.processComplete = False
                     break
         else:
             current_intent = self.response.lastResponseJson['intentName']
 
-        if not self.response.ruleComplete:
+        if not self.response.processComplete:
             if not self.response.lastResponseJson['action']['complete']:
                 ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'], query)
                 if ruleMatch is None:
@@ -664,14 +664,14 @@ class ChatbotEngines:
                                 {'entity': self.response.lastResponseJson['slot'], 'value': query})
 
                 self.response.responseJson = self.intentAction(contentData, current_intent, None, query)
-                if self.response.responseJson['action']['complete'] and self.response.ruleContent.has_key(
+                if self.response.responseJson['action']['complete'] and self.response.processContent.has_key(
                         self.response.responseJson['intentName']):
-                    self.response.ruleContent[self.response.responseJson['intentName']] = True
+                    self.response.processContent[self.response.responseJson['intentName']] = True
 
                 self.response.returnJson = {'status': self.response.responseJson['status'], 'data': contentData}
 
                 isAllTrue = True
-                for (k, v) in self.response.ruleContent.items():
+                for (k, v) in self.response.processContent.items():
                     if v is False:
                         isAllTrue = False
                         break
