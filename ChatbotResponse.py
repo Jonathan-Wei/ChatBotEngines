@@ -6,6 +6,12 @@ from ChatbotHistoryInfo import *
 class ChatbotResponse:
 
     def __init__(self):
+        self.INIT_TYPE = 0
+        self.PRE_ASK_TYPE = 1
+        self.POST_ASK_TYPE = 3
+        self.SLOT_ASK_TYPE =2
+        self.RULE_ASK_TYPE =4
+
         self.answer  = ""
         self.complete = False
         self.result_entities = {}
