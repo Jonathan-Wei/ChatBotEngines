@@ -59,39 +59,59 @@ class ChatbotMicroservices:
             type = 7
             message = "酒店信息"
             title = params['hotelCity'] +" "+params['hotelArea']
-            details = self.requst(url, params).json()['data'][0:5]
+            r = self.requst(url, params).json()
+            details = r['data']
+
+            if len(r['data']) == 0:
+                details = None
 
             resultDetails = []
-            i = 0
-            for detail in details:
-                detail['date'] = '2018-01-19'
-                if i ==0 :
-                    detail['haveStayed'] = 1
-                else:
-                    detail['haveStayed'] = 0
-                resultDetails.append(detail)
-                i=i+1
+            if details is not None:
+                i = 0
+                for detail in details:
+                    detail['date'] = '2018-01-19'
+                    if i ==0 :
+                        detail['haveStayed'] = 1
+                    else:
+                        detail['haveStayed'] = 0
+                    resultDetails.append(detail)
+                    i=i+1
 
-            responseJson['type'] = type
-            responseJson['message'] = message
-            responseJson['content'] = {
-                "title": title,
-                "details": details
-            }
+                responseJson['type'] = type
+                responseJson['message'] = message
+                responseJson['content'] = {
+                    "title": title,
+                    "details": details
+                }
+                responseJson['data'] = details
+            else:
+                responseJson['type'] = 0
+                responseJson['message'] = "您所查询的区域未找到匹配的酒店，请重新进行查询！"
+                responseJson['data'] = []
             return responseJson
         elif intent == '航班查询':
             url = url+"/travel/queryFlightInfo"
             type = 8
             message = "航班信息"
             params['departureDate'] = '2018-01-16'
-            details = self.requst(url, params).json()['data'][0:5]
-            title = params['departureCity']+"-"+params['terminusCity']
-            responseJson['type'] = type
-            responseJson['message'] = message
-            responseJson['content'] = {
-                "title": title,
-                "details": details
-            }
+            r = self.requst(url, params).json()
+            details = r['data']
+            if len(r['data']) == 0:
+                details = None
+
+            if details is not None:
+                title = params['departureCity']+"-"+params['terminusCity']
+                responseJson['type'] = type
+                responseJson['message'] = message
+                responseJson['content'] = {
+                    "title": title,
+                    "details": details
+                }
+                responseJson['data'] = details
+            else:
+                responseJson['type'] = 0
+                responseJson['message'] = "为查询到对应时间点的航班，请重新进行查询！"
+                responseJson['data'] = []
             return responseJson
         elif intent == '订购机票':
             url = url + "/travel/inserAirfareOrder"
@@ -99,9 +119,13 @@ class ChatbotMicroservices:
             params['customerNumber'] = '12691999664'
             params['customerName'] = username
             r = self.requst(url, params).json()
+
             responseJson['type'] = type
-            message = r['message'].replace("您好 "+username+" 您预订的", "").replace("已预订成功！将于于：", "将于")
-            responseJson['message'] = message+"订单序号："+r['orderSerial']
+            message = r['message'].replace("您好 "+username+" 您预订的", "")#.replace("已预订成功！将于于：", "将于")
+            if r['data'] is not None:
+                responseJson['message'] = message+"订单序号："+r['orderSerial']
+
+            responseJson['data'] = r
             return responseJson
         elif intent == '订购酒店':
             url = url + "/travel/insertHoteOrder"
@@ -112,8 +136,10 @@ class ChatbotMicroservices:
             type = 0
             responseJson['type'] = type
             message = "酒店名称："+r['message'].replace("您好！ "+username
-                                                   +" 您所预订的","").replace(" 已成功！","")
+                                                   +" 您所预订的","")#.replace(" 已成功！","")
+            #if r['data'] is not None:
             responseJson['message'] = message + "，订单序号：" + r['orderSerial']
+            responseJson['data'] = r
             return responseJson
         elif self.utils.RegularMatchUrl(intent): # 微服务地址
             url = intent

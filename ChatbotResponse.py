@@ -20,8 +20,6 @@ class ChatbotResponse:
         self.entities_question = OrderedDict()
 
         self.entities_types = {}  # slot提问类型
-        self.processContent = OrderedDict()  # 规则内容
-        self.processComplete = True  # 规则是否完整执行
         self.lastEntities = {}
         self.entities = []  # 识别的entities
         self.status = {}
@@ -30,6 +28,8 @@ class ChatbotResponse:
 
         self.pre_question = None  # 上一次的问题信息
         self.curslot = None
+
+        self.contentData = []
         # self.history_details = []  # 历史详情，用于酒店-航班的选择匹配
         # # 历史意图
         # self.historyIntentsInfo = []  # 历史意图信息
@@ -41,3 +41,4 @@ class ChatbotResponse:
         self.existHistory = False
 
         self.intentFlowInfo = ChatbotIntentFlow()
+        self.slots = []

@@ -2,7 +2,7 @@
 
 class ChatbotHistoryInfo:
 
-    def __init__(self,historyIntentsInfo = [],historyIntentsTag = [],historyDetails = [],historyActions = []):
+    def __init__(self,historyIntentsInfo = [],historyIntentsTag = [],historyDetails = [],historyActions = {}):
         self.historyIntentsInfo = historyIntentsInfo
         self.historyIntentsTag = historyIntentsTag
         self.historyDetails = historyDetails
@@ -60,6 +60,9 @@ class ChatbotHistoryInfo:
     def matchHistoryDetails(self, query, slot):
         if len(self.historyDetails) > 0:
             for details in self.historyDetails:
+                if details is None:
+                    continue
+
                 for detail in details:
                     for (k, v) in detail.items():
                         if k == slot and (query.upper() in v):
