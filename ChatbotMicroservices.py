@@ -93,10 +93,10 @@ class ChatbotMicroservices:
             url = url+"/travel/queryFlightInfo"
             type = 8
             message = "航班信息"
-            params['departureDate'] = '2018-01-16'
+            params['departureDate'] = '2018-03-04'
             r = self.requst(url, params).json()
             details = r['data']
-            if len(r['data']) == 0:
+            if r['data'] is None or len(r['data']) == 0:
                 details = None
 
             if details is not None:

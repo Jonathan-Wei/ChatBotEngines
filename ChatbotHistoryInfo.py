@@ -2,7 +2,7 @@
 
 class ChatbotHistoryInfo:
 
-    def __init__(self,historyIntentsInfo = [],historyIntentsTag = [],historyDetails = [],historyActions = {}):
+    def __init__(self,historyIntentsInfo = {},historyIntentsTag = [],historyDetails = [],historyActions = {}):
         self.historyIntentsInfo = historyIntentsInfo
         self.historyIntentsTag = historyIntentsTag
         self.historyDetails = historyDetails
@@ -30,7 +30,7 @@ class ChatbotHistoryInfo:
             "responseJson":responseJson
         }
         # 添加历史意图
-        self.historyIntentsInfo.append(item)
+        self.historyIntentsInfo[intent] = item
 
         # 更新历史意图标记
         if tag is not None:
@@ -48,8 +48,7 @@ class ChatbotHistoryInfo:
 
     def getHistorySlots(self):
         params = {}
-        intents = self.historyIntentsInfo
-        for intent in intents:
+        for (k,intent) in self.historyIntentsInfo.items():
             entities = intent['responseJson']['action']['parameters']
             for entity in entities:
                 params[entity['entity']] = entity['value']

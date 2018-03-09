@@ -389,7 +389,7 @@ class ChatbotEngines:
 
         self.response.pre_question = None
         self.response.curslot = None
-        self.response.historyInfo = ChatbotHistoryInfo()
+        self.response.historyInfo = ChatbotHistoryInfo({},[],[],{})
 
         self.returnJson = {}
         self.existHistory = False
@@ -427,19 +427,47 @@ class ChatbotEngines:
         if reRunIntent is not None:
             if len(self.response.intentFlowInfo.intentFlowContent) > 0:  # 当存在意图流程的情况下
                 # 返回结果检测有问题，则重制结果有问题的流程为false,整体流程也为false
-                self.response.intentFlowInfo.intentFlowContent[self.response.responseJson['intentName']] = False
+                self.response.intentFlowInfo.intentFlowContent[unicode(self.response.responseJson['intentName'])] = False
                 # 当存在  酒店查询--》订购酒店 时，订购酒店失败，需要重新订购，重新订购需要给予用户重新查询酒店的信息。
-                self.response.intentFlowInfo.intentFlowContent[reRunIntent] = False
+                self.response.intentFlowInfo.intentFlowContent[unicode(reRunIntent)] = False
                 self.response.intentFlowInfo.intentFlowComplete = False
 
-            # 清空对应意图的slot
             self.response.result_entities = {}
+            self.response.entities = []
+
+            needResetIntent = None
+            for (k,intentInfo) in self.response.historyInfo.historyIntentsInfo.items():
+                if reRunIntent == k:
+                    needResetIntent = intentInfo
+                    break
+
+
+            # 查询数据库关联slot，哪些需要更改，哪些不需要 ，并填充result_entities
+            self.n.query("select * from robot_scene_slot where int_id in (select id from robot_scene WHERE `name` = \'"+reRunIntent+"\') and can_reset = 1")
+            r = self.n.fetchAll()
+
+            if r is not None:
+                slots = needResetIntent['responseJson']['action']['parameters']
+
+                for result in r:
+                    for slot in slots:
+                        if result['can_reset'] == 1 and result['type_name'] == slot['entity']:
+                            self.response.result_entities[slot['entity']] = slot['value']
+                            self.response.entities.append(slot)
+                            break
+
+            else:
+                self.response.result_entities = {}
+
+
+            # 清空对应意图的slot
+            #self.response.result_entities = {}
             self.response.entities_question = {}
             self.response.entities_types = {}
             self.response.complete = False
-            self.response.entities = []
+
             self.response.curslot = ''
-            self.getSlotQuestions(intent)
+            self.getSlotQuestions(reRunIntent)
 
             self.response.currentQuestionType = self.response.SLOT_ASK_TYPE
             self.collectSlotInfo()
@@ -460,7 +488,7 @@ class ChatbotEngines:
                         self.response.answer = self.response.answer.replace('${' + slot['entity'] + "}",
                                                                             slot['value'])
 
-            self.intentCompleteCheck(slots, None, intent, None)
+            self.intentCompleteCheck(slots, None, reRunIntent, None)
 
             self.response.lastResponseJson = self.response.responseJson
 
@@ -583,7 +611,7 @@ class ChatbotEngines:
             self.response.intentFlowInfo.intentFlowContent = self.getIntentFlow(self.response.lastResponseJson['lastIntent'])
 
             if self.response.intentFlowInfo.intentFlowContent is not None and len(self.response.intentFlowInfo.intentFlowContent) > 0 and self.response.intentFlowInfo.intentFlowContent.has_key(self.response.lastResponseJson['intentName']):
-                self.response.intentFlowInfo.intentFlowContent[self.response.lastResponseJson['intentName']] = True
+                self.response.intentFlowInfo.intentFlowContent[unicode(self.response.lastResponseJson['intentName'])] = True
 
             self.response.currentQuestionType = self.response.INIT_TYPE
             self.response.responseJson = self.intentAction(self.response.lastResponseJson['lastIntent'], None,
@@ -608,7 +636,7 @@ class ChatbotEngines:
     def intentCompleteAfterCheck(self, intent, tag):
         if self.response.complete:
             # # 添加历史意图
-            self.response.historyInfo.addHistoryIntent(intent,tag,self.response.responseJson)
+            self.response.historyInfo.addHistoryIntent(unicode(intent),tag,self.response.responseJson)
 
             self.response.currentQuestionType = self.response.INIT_TYPE
             #后置检查
@@ -636,12 +664,6 @@ class ChatbotEngines:
                 flag = r['flag']
                 if actionName is not None and len(actionName) > 0:
                     if flag == 1:
-                        # self.response.historyInfo.historyActions.append({
-                        #     "intent": self.response.responseJson['intentName'],
-                        #     "action": actionName,
-                        #     "params": self.utils.listToMap(slots),
-                        #     "complete":False
-                        # })
                         self.response.historyInfo.historyActions[actionName] = {
                             "intent": self.response.responseJson['intentName'],
                             "params": self.utils.listToMap(slots),
