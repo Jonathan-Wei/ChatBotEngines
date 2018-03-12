@@ -711,6 +711,10 @@ class ChatbotEngines:
                         if self.response.entities is not None:
                             self.response.entities.append(
                                 {'entity': self.response.lastResponseJson['slot'], 'value': query})
+
+                    elif self.workLibMatch(self.response.lastResponseJson['slotType'],query):
+                        self.response.entities.append(
+                            {'entity': self.response.lastResponseJson['slot'], 'value': query})
                     else:
                         r = requests.get(self.nluServer + query)
                         data = json.loads(r.text)
@@ -866,3 +870,15 @@ class ChatbotEngines:
                         nextIntent = result['n_result']
 
         return nextIntent
+
+    # 字典匹配
+    def workLibMatch(self,type,value):
+        self.n.query("select w.* from robot_dict_word as w WHERE w.dict_id in (select id from robot_dict as d where d.`name` = \'"+type+"\')")
+        r = self.n.fetchAll()
+        if r is None:
+            return False
+        for result in r:
+            if value == result['keyword']:
+                return True
+
+        return False
