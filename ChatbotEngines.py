@@ -71,8 +71,8 @@ class ChatbotEngines:
         r = self.n.fetchAll()
 
         for result in r:
-            self.response.entities_question[result['slot']] = result['slot_question']
-            self.response.entities_types[result['slot']] = result['slot_type'].decode(sys.getdefaultencoding())
+            slot = Slot(result['slot_type'],result['slot'],ask=result['slot_question'])
+            self.response.slots[result['slot']]=slot.__dict__
 
     #验证用户token
     def validate(self):
@@ -93,7 +93,6 @@ class ChatbotEngines:
 
         # 判断是否ruleContent 是否空
             #不为空  判断是否已经匹配参数及调用历史意图信息，进行询问
-        # if len(self.response.intentFlowInfo.intentFlowContent)>0 or not self.response.intentFlowInfo.intentFlowComplete:
         if len(self.response.intentFlowInfo.intentFlowContent) > 0:# and not self.response.intentFlowInfo.intentFlowComplete:
             if self.response.currentQuestionType == self.response.RULE_ASK_TYPE and self.response.intentFlowInfo.intentFlowComplete:
                 self.ruleInspection(query)
@@ -179,11 +178,10 @@ class ChatbotEngines:
         # 历史意图是否一致
         # 当意图被切换时，更新需要询问的solt,需要保存历史的意图信息。
         if self.response.currentQuestionType!=self.response.SLOT_ASK_TYPE:
-            if len(self.response.entities_question) == 0 or len(self.response.lastResponseJson) >0 and self.response.lastResponseJson['intentName'] != intent:
+            if len(self.response.slots) == 0 or len(self.response.lastResponseJson) >0 and self.response.lastResponseJson['intentName'] != intent:
                 # 保存历史意图信息。
                 self.response.result_entities = {}
-                self.response.entities_question = {}
-                self.response.entities_types ={}
+                self.response.slots = OrderedDict()
                 self.getSlotQuestions(intent)
                 if len(self.response.lastResponseJson) > 0:
                     self.response.entities = []
@@ -255,7 +253,6 @@ class ChatbotEngines:
             return False
 
         if check is not None:
-            #if check not in self.response.historyIntentsTag:
             if not self.response.historyInfo.matchHistoryIntent(check):
                 self.response.currentQuestionType = self.response.POST_ASK_TYPE
                 content = {"type": 0, "message": self.response.pre_question}
@@ -280,11 +277,11 @@ class ChatbotEngines:
     # slot 填充
     def matchSlot(self):
         result = {}
-        lastEntitiesType = self.response.lastResponseJson['lastEntitiesType']
+        lastSlots = self.response.lastResponseJson['lastSlots']
         for slot in self.response.lastResponseJson['action']['parameters']:
-            slotType = lastEntitiesType[slot['entity']]
-            for (k,v) in self.response.entities_types.items():
-                if slotType == v:
+            slotType = lastSlots[slot['entity']]['type_name']
+            for (k,v) in self.response.slots.items():
+                if slotType == v['type_name']:
                     result[k] = slot['value']
                     break
 
@@ -296,12 +293,12 @@ class ChatbotEngines:
         intents = self.response.historyInfo.getHistoryIntents()
         for intent in intents:
             self.response.entities = intent['responseJson']['action']['parameters']
-            self.response.entities_types = intent['responseJson']['lastEntitiesType']
+            self.response.slots = intent['responseJson']['lastSlots']
 
             for entity in self.response.entities:
-                for (k,v) in self.response.entities_types.items():
+                for (k,v) in self.response.slots.items():
                     if k == entity['entity']:
-                        slots[self.response.entities_types[k]] = entity['value']
+                        slots[v['type_name']] = entity['value']
                         break
 
         return slots
@@ -379,8 +376,7 @@ class ChatbotEngines:
         self.response.result_entities = {}
         self.response.actionJson = {}
         self.response.lastResponseJson = {}
-        self.response.entities_question = OrderedDict()
-        self.response.entities_types = {}
+        self.response.slots = OrderedDict()
         self.response.lastEntities = {}
         self.response.entities = []
         self.response.status = {}
@@ -461,9 +457,7 @@ class ChatbotEngines:
 
 
             # 清空对应意图的slot
-            #self.response.result_entities = {}
-            self.response.entities_question = {}
-            self.response.entities_types = {}
+            self.response.slots = OrderedDict()
             self.response.complete = False
 
             self.response.curslot = ''
@@ -533,20 +527,21 @@ class ChatbotEngines:
     def collectSlotInfo(self):
         # 如果没有slot，则直接查询solr
         # 当当前问题类型是0且无slot问题时complete为True
-        if self.response.currentQuestionType == self.response.INIT_TYPE and len(self.response.entities_question) == 0:
+        if self.response.currentQuestionType == self.response.INIT_TYPE and len(self.response.slots) == 0:
             self.response.complete = True
         else:
             if self.response.entities is None or len(self.response.entities) == 0:
-                self.response.curslot = self.response.entities_question.items()[0][0]
-                self.response.answer = self.response.entities_question.items()[0][1]
+                self.response.curslot = self.response.slots.keys()[0]
+                self.response.answer = self.response.slots.get(self.response.curslot)['_ask']
             else:
-                for (k, v) in self.response.entities_question.items():
+                for (k,slot) in self.response.slots.items():
                     isMatch = False
-                    # slot与entities的匹配
+
                     for entity in self.response.entities:
                         if entity['entity'] == k:
                             isMatch = True
                             self.response.result_entities[k] = entity['value']
+                            self.response.slots[k]['value'] = entity['value']
                             break
 
                     if not isMatch:
@@ -558,12 +553,12 @@ class ChatbotEngines:
 
                     # 未匹配，则获取未匹配的slot进行询问
                     if not isMatch:
-                        self.response.answer = self.response.entities_question[k]
+                        self.response.answer = slot['_ask']
                         self.response.curslot = k
                         self.response.complete = False
                         break
 
-                if len(self.response.result_entities) == len(self.response.entities_question):
+                if len(self.response.result_entities) == len(self.response.slots):
                     self.response.complete = True
 
             parametersJson = []
@@ -771,7 +766,6 @@ class ChatbotEngines:
         ruleMatch = self.ruleMatch(ask, query)
         if ruleMatch == '确定':
             action = ruleInfo['action']
-            #contentData.append(self.executeAction())
 
             isSuccess = self.executeAction()
             # 确认则执行后置动作
@@ -800,7 +794,6 @@ class ChatbotEngines:
     def slotStuff(self,query):
 
         ruleMatch = self.matchType(query)
-        # ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'],query)
         if ruleMatch is None:  # 意图判断为空，则重新匹配切换意图
             if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                 if self.response.entities is not None:
@@ -821,8 +814,9 @@ class ChatbotEngines:
         else:
             # 匹配其他的slot信息
             slot = ''
-            for (k, v) in self.response.entities_types.items():
-                if ruleMatch in v:
+
+            for (k, v) in self.response.slots.items():
+                if ruleMatch in v['_ask']:
                     slot = k
                     break
 
@@ -842,13 +836,13 @@ class ChatbotEngines:
             "confidence": confidence,
             "action": self.response.actionJson,
             "currentQuestionType": self.response.currentQuestionType,
-            "lastEntitiesType": self.response.entities_types,
+            "lastSlots":self.response.slots,
             "answer": self.response.answer,
             "status": self.response.status
         }
         if not self.response.complete:
             self.response.responseJson['slot'] = self.response.curslot # 保存历史的slot以及slotType用于模式匹配。
-            self.response.responseJson['slotType'] = self.response.entities_types[self.response.curslot]
+            self.response.responseJson['slotType'] = self.response.slots[self.response.curslot]['type_name']
 
     # 动作结果检查
     def actionContentCheck(self,intent,action,responseContent):

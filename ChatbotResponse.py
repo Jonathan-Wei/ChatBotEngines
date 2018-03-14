@@ -2,6 +2,7 @@
 from collections import OrderedDict
 from ChatbotIntentFlow import *
 from ChatbotHistoryInfo import *
+from core.Slots import *
 
 class ChatbotResponse:
 
@@ -11,6 +12,8 @@ class ChatbotResponse:
         self.POST_ASK_TYPE = 3
         self.SLOT_ASK_TYPE =2
         self.RULE_ASK_TYPE =4
+
+        self.slots = OrderedDict()
 
         self.answer  = ""
         self.complete = False
@@ -30,15 +33,9 @@ class ChatbotResponse:
         self.curslot = None
 
         self.contentData = []
-        # self.history_details = []  # 历史详情，用于酒店-航班的选择匹配
-        # # 历史意图
-        # self.historyIntentsInfo = []  # 历史意图信息
-        # self.historyIntentsTag = []  # 历史意图输出标签信息
-        # self.historyAction = []
         self.historyInfo = ChatbotHistoryInfo()
 
         self.returnJson = {}
         self.existHistory = False
 
         self.intentFlowInfo = ChatbotIntentFlow()
-        self.slots = []
