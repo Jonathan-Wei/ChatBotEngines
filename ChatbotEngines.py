@@ -110,7 +110,7 @@ class ChatbotEngines:
                 intent = data['intent']['name']
                 if self.response.currentQuestionType == self.response.INIT_TYPE:
                     # 当后置意图为空，检查前置意图
-                    self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `input` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
+                    self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `check` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
                     r = self.n.fetchRow()
                     input = None
                     if r is not None:
