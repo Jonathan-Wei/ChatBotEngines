@@ -574,7 +574,7 @@ class ChatbotEngines:
         ruleMatch = self.ruleMatch(self.response.pre_question, query)
         # 获取否定触发的动作，触发酒店/机票查询
         self.n.query(
-            "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.input")
+            "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.check")
         r = self.n.fetchRow()
         if ruleMatch == '确定':
             nextIntent = r['y_action']

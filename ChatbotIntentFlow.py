@@ -3,7 +3,7 @@ from collections import OrderedDict
 
 class ChatbotIntentFlow:
 
-    def __init__(self,intentFlowContent=OrderedDict(),intentFlowComplete = True, comfirmAction=None,negativeAction=None,ask=None):
+    def __init__(self,intentFlowContent=OrderedDict(),intentFlowComplete = False, comfirmAction=None,negativeAction=None,ask=None):
         self.intentFlowContent = intentFlowContent # 规则内容
         self.intentFlowComplete = intentFlowComplete # 规则是否完整执行
         self.comfirmAction = comfirmAction  # 问题确认执行action
