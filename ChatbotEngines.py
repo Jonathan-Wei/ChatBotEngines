@@ -110,7 +110,7 @@ class ChatbotEngines:
                 intent = data['intent']['name']
                 if self.response.currentQuestionType == self.response.INIT_TYPE:
                     # 当后置意图为空，检查前置意图
-                    self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `check` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
+                    self.n.query("select mark.`name` as `input`,mark.ask as question,scene.`name` as intent from robot_scene_mark as mark,robot_scene as scene where mark.id = (select `input` from robot_scene where `name` = \'"+intent+"\') and mark.int_id = scene.id")
                     r = self.n.fetchRow()
                     input = None
                     if r is not None:
@@ -574,7 +574,7 @@ class ChatbotEngines:
         ruleMatch = self.ruleMatch(self.response.pre_question, query)
         # 获取否定触发的动作，触发酒店/机票查询
         self.n.query(
-            "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.check")
+            "select scene.id,scene.`name`,mark.y_hint,mark.y_action,mark.in_hint,mark.in_action from robot_scene as scene,robot_scene_mark as mark where scene.`name` = \'" + self.response.lastIntent + "\' and mark.id = scene.input")
         r = self.n.fetchRow()
         if ruleMatch == '确定':
             nextIntent = r['y_action']
@@ -798,6 +798,9 @@ class ChatbotEngines:
             if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                 if self.response.entities is not None:
                     self.response.entities.append({'entity': self.response.lastResponseJson['slot'], 'value': query})
+            elif self.workLibMatch(self.response.lastResponseJson['slotType'],query):
+                self.response.entities.append(
+                    {'entity': self.response.lastResponseJson['slot'], 'value': query})
             else:
                 r = requests.get(self.nluServer + query)
                 data = json.loads(r.text)
