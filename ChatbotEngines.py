@@ -130,7 +130,8 @@ class ChatbotEngines:
 
                 if self.response.currentQuestionType == self.response.SLOT_ASK_TYPE: #状态未2时，表示填充solt状态
                     intent = self.response.lastResponseJson['intentName']
-                    self.slotStuff(query)
+                    ruleMatch = self.matchType(query)
+                    self.slotStuff(query,ruleMatch)
                 else:
                     self.response.entities = data['entities']
                     confidence = data['intent']['confidence']
@@ -700,27 +701,28 @@ class ChatbotEngines:
         if not self.response.intentFlowInfo.intentFlowComplete:
             if not self.response.lastResponseJson['action']['complete']:
                 ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'], query)
-                if ruleMatch is None:
-                    # 意图判断为空，则重新匹配切换意图
-                    if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
-                        if self.response.entities is not None:
-                            self.response.entities.append(
-                                {'entity': self.response.lastResponseJson['slot'], 'value': query})
-
-                    elif self.workLibMatch(self.response.lastResponseJson['slotType'],query):
-                        self.response.entities.append(
-                            {'entity': self.response.lastResponseJson['slot'], 'value': query})
-                    else:
-                        r = requests.get(self.nluServer + query)
-                        data = json.loads(r.text)
-                        self.response.entities = data['entities']
-                        self.response.confidence = data['intent']['confidence']
-                        self.response.currentQuestionType = self.response.INIT_TYPE
-                else:
-                    if ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
-                        if self.response.entities is not None:
-                            self.response.entities.append(
-                                {'entity': self.response.lastResponseJson['slot'], 'value': query})
+                self.slotStuff(query,ruleMatch)
+                # if ruleMatch is None:
+                #     # 意图判断为空，则重新匹配切换意图
+                #     if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
+                #         if self.response.entities is not None:
+                #             self.response.entities.append(
+                #                 {'entity': self.response.lastResponseJson['slot'], 'value': query})
+                #
+                #     elif self.workLibMatch(self.response.lastResponseJson['slotType'],query):
+                #         self.response.entities.append(
+                #             {'entity': self.response.lastResponseJson['slot'], 'value': query})
+                #     else:
+                #         r = requests.get(self.nluServer + query)
+                #         data = json.loads(r.text)
+                #         self.response.entities = data['entities']
+                #         self.response.confidence = data['intent']['confidence']
+                #         self.response.currentQuestionType = self.response.INIT_TYPE
+                # else:
+                #     if ruleMatch in self.response.lastResponseJson['slotType']:  # 规则匹配成功，直接填充entities传到intentAction中
+                #         if self.response.entities is not None:
+                #             self.response.entities.append(
+                #                 {'entity': self.response.lastResponseJson['slot'], 'value': query})
 
                 self.response.responseJson = self.intentAction(current_intent, None, query)
                 if self.response.responseJson['action']['complete'] and self.response.intentFlowInfo.intentFlowContent.has_key(
@@ -791,9 +793,7 @@ class ChatbotEngines:
                                         'data': self.global_answer + ask}
 
     # slot 填充
-    def slotStuff(self,query):
-
-        ruleMatch = self.matchType(query)
+    def slotStuff(self,query,ruleMatch):
         if ruleMatch is None:  # 意图判断为空，则重新匹配切换意图
             if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                 if self.response.entities is not None:
