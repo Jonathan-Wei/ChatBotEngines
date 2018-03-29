@@ -787,6 +787,8 @@ class ChatbotEngines:
 
         elif ruleMatch == '否定':
             self.resetHistoryIntent()
+            self.response.returnJson = {'status': self.response.responseJson['status'],
+                                        'data': [{"type": 0, "message": "好的"}]}
         else:
             # 提交流程时，当用户回答不匹配时，继续提问
             self.response.returnJson = {'status': self.response.responseJson['status'],
