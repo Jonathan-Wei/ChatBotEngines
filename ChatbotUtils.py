@@ -125,7 +125,7 @@ class ChatbotUtils:
     def matchComfirm(self,comfirm):
         if comfirm == '是的' or comfirm == '对的' or comfirm =='对' or comfirm == '是' or comfirm == '好' or comfirm =='好的' or comfirm == '嗯' or comfirm == 'ok':
             return True
-        elif comfirm == '不用' or comfirm == '不需要' or comfirm =='不了' or comfirm == '不' or comfirm == 'no' or comfirm == '不确定':
+        elif comfirm == '不用' or comfirm == '不需要' or comfirm =='不了' or comfirm == '不' or comfirm == 'no' or comfirm == '不确定' or comfirm == '不是' or comfirm == '不确定':
             return False
         else:
             return None
