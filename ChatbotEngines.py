@@ -131,7 +131,7 @@ class ChatbotEngines:
                 if self.response.currentQuestionType == self.response.SLOT_ASK_TYPE: #状态未2时，表示填充solt状态
                     intent = self.response.lastResponseJson['intentName']
                     ruleMatch = self.matchType(query)
-                    self.slotStuff(query,ruleMatch)
+                    self.slotStuff(query,ruleMatch,intent)
                 else:
                     self.response.entities = data['entities']
                     confidence = data['intent']['confidence']
@@ -701,7 +701,7 @@ class ChatbotEngines:
         if not self.response.intentFlowInfo.intentFlowComplete:
             if not self.response.lastResponseJson['action']['complete']:
                 ruleMatch = self.ruleMatch(self.response.lastResponseJson['slotType'], query)
-                self.slotStuff(query,ruleMatch)
+                current_intent = self.slotStuff(query,ruleMatch,current_intent)
                 self.response.responseJson = self.intentAction(current_intent, None, query)
                 if self.response.responseJson['action']['complete'] and self.response.intentFlowInfo.intentFlowContent.has_key(
                         self.response.responseJson['intentName']):
@@ -773,7 +773,7 @@ class ChatbotEngines:
                                         'data': self.global_answer + ask}
 
     # slot 填充
-    def slotStuff(self,query,ruleMatch):
+    def slotStuff(self,query,ruleMatch,current_intent):
         if ruleMatch is None:  # 意图判断为空，则重新匹配切换意图
             if self.response.historyInfo.matchHistoryDetails(query, self.response.lastResponseJson['slot']):
                 if self.response.entities is not None:
@@ -782,9 +782,30 @@ class ChatbotEngines:
                 self.response.entities.append(
                     {'entity': self.response.lastResponseJson['slot'], 'value': query})
             else:
+
+                # 匹配意图不符合当前意图时，
+                # 先匹配历史意图，如历史意图存在相同的意图，则更新意图的slot，并执行对应的action；
+                # 否则视为新的意图；
+                    # 询问是否保留意图，如保留则保存到数据库
+                    # 不保留则清理缓存
+
                 r = requests.get(self.nluServer + query)
                 data = json.loads(r.text)
-                if self.response.responseJson['intentName'] != data['intent']['name']:
+                if self.response.historyInfo.historyIntentsInfo.has_key(data['intent']['name']):
+                    self.response.responseJson = self.response.historyInfo.historyIntentsInfo.get(data['intent']['name'])
+                    for entity in data['entities']:
+                        self.response.entities.append(entity)
+
+                    slots = self.response.responseJson['responseJson']['action']['parameters']
+                    self.response.result_entities = {}
+                    self.response.slots = OrderedDict()
+                    self.getSlotQuestions(data['intent']['name'])
+                    for slot in slots:
+                        self.response.result_entities[slot['entity']] = slot['value']
+                    self.response.currentQuestionType = self.response.SLOT_ASK_TYPE
+
+                    current_intent = data['intent']['name']
+                elif self.response.responseJson['intentName'] != data['intent']['name']:
                     self.response.entities = data['entities']
                     self.response.confidence = data['intent']['confidence']
                     self.response.currentQuestionType = self.response.INIT_TYPE
@@ -805,6 +826,7 @@ class ChatbotEngines:
 
             if self.response.entities is not None and len(slot) > 0:
                 self.response.entities.append({'entity': slot, 'value': query})
+        return current_intent
 
     # 填充responseJson
     def responseJsonStuff(self,content,query,intent,confidence):
